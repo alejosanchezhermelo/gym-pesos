@@ -248,7 +248,9 @@ final class Store {
 
     private func advanceIfFinished(_ ex: RoutineExercise) {
         guard data.session?.currentKey == ex.key, status(ex).all else { return }
-        data.session?.currentKey = nextPendingKey(after: ex.key)
+        // Primero se calcula y después se asigna: leer `data` mientras se modifica cierra la app.
+        let next = nextPendingKey(after: ex.key)
+        data.session?.currentKey = next
     }
 
     func startSession(dayIndex: Int) {
@@ -260,7 +262,8 @@ final class Store {
             dayIndex: dayIndex, dayName: day.name, start: now, date: Dates.key(now),
             currentKey: nil, confirmingEnd: false, lastActivity: now
         )
-        data.session?.currentKey = nextPendingKey(after: nil)
+        let first = nextPendingKey(after: nil)
+        data.session?.currentKey = first
         save()
         startLiveActivity()
         Task { _ = await Notifier.requestPermission() }
@@ -364,7 +367,8 @@ final class Store {
 
     func skipCurrentExercise() {
         guard data.session != nil else { return endAllActivities() }
-        data.session?.currentKey = nextPendingKey(after: data.session?.currentKey)
+        let next = nextPendingKey(after: data.session?.currentKey)
+        data.session?.currentKey = next
         commit()
     }
 
