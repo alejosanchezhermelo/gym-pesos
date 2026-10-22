@@ -35,6 +35,8 @@ struct HistoryEntry: Codable, Equatable {
     var prW: Double?
     /// Día de la rutina en que se anotó. nil en los pesos de ejemplo.
     var day: String?
+    /// Entrenamiento al que pertenece. nil si se anotó sin arrancar uno.
+    var session: UUID?
 
     var doneWeights: [Double] { zip(sets, done).filter { $0.1 }.map { $0.0 } }
     var top: Double? { doneWeights.max() }
@@ -51,6 +53,8 @@ struct Session: Codable, Equatable {
     var currentKey: String?
     var confirmingEnd: Bool
     var lastActivity: Date?
+    /// Cada entrenamiento es independiente: se pueden hacer varios el mismo día.
+    var id: UUID?
 }
 
 struct PRItem: Codable, Equatable, Hashable {

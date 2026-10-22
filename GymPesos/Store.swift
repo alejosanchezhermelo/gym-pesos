@@ -67,26 +67,30 @@ final class Store {
 
     func entries(_ k: String) -> [HistoryEntry] { data.hist[k] ?? [] }
 
+    /// La anotación actual: la del entrenamiento en curso, o la suelta de hoy si no hay ninguno.
+    private func isCurrent(_ e: HistoryEntry) -> Bool {
+        e.date == workDate && e.session == data.session?.id
+    }
+
     func todayEntry(_ k: String) -> HistoryEntry? {
-        let today = workDate
-        return entries(k).first { $0.date == today }
+        entries(k).last(where: isCurrent)
     }
 
     func lastEntry(_ k: String, excludingToday: Bool) -> HistoryEntry? {
-        let today = workDate
-        return entries(k).last { $0.hasDone && !(excludingToday && $0.date == today) }
+        entries(k).last { $0.hasDone && !(excludingToday && isCurrent($0)) }
     }
 
+    /// Mejor peso de todas las veces anteriores (incluso de otro entrenamiento hoy).
     func bestPast(_ k: String) -> Double? {
-        let today = workDate
-        return entries(k).filter { $0.date != today }.compactMap(\.top).max()
+        entries(k).filter { !isCurrent($0) }.compactMap(\.top).max()
     }
 
     func progress(_ k: String) -> [ProgressPoint] {
         entries(k)
-            .filter(\.hasDone)
-            .sorted { $0.date < $1.date }
-            .compactMap { e in e.top.map { ProgressPoint(date: e.date, weight: $0) } }
+            .enumerated()
+            .filter { $0.element.hasDone }
+            .sorted { ($0.element.date, $0.offset) < ($1.element.date, $1.offset) }
+            .compactMap { item in item.element.top.map { ProgressPoint(date: item.element.date, weight: $0) } }
     }
 
     func status(_ ex: RoutineExercise) -> ExerciseStatus {
@@ -103,7 +107,10 @@ final class Store {
         }
         let seed = lastEntry(ex.key, excludingToday: true)?.sets ?? []
         let sets = (0..<ex.series).map { i in i < seed.count ? seed[i] : (seed.last ?? 0) }
-        return HistoryEntry(date: workDate, sets: sets, done: Array(repeating: false, count: ex.series), day: dayName)
+        return HistoryEntry(
+            date: workDate, sets: sets, done: Array(repeating: false, count: ex.series),
+            day: dayName, session: data.session?.id
+        )
     }
 
     func lastDate(of day: RoutineDay) -> String? {
@@ -126,7 +133,7 @@ final class Store {
     private func ensureEntry(_ ex: RoutineExercise, dayName: String) -> Int {
         let e = entryOrSeed(ex, dayName: dayName)
         var list = entries(ex.key)
-        if let i = list.firstIndex(where: { $0.date == e.date }) {
+        if let i = list.firstIndex(where: isCurrent) {
             list[i] = e
             data.hist[ex.key] = list
             return i
@@ -170,7 +177,10 @@ final class Store {
         guard data.hist[ex.key]![idx].done.indices.contains(i) else { return }
         data.hist[ex.key]![idx].done[i].toggle()
         checkRecord(ex, raised: data.hist[ex.key]![idx].done[i])
-        if data.session?.dayIndex == dayIndex { advanceIfFinished(ex) }
+        if data.session?.dayIndex == dayIndex {
+            advanceIfFinished(ex)
+            if finishIfDayComplete() { return }
+        }
         commit(touch: true)
     }
 
@@ -183,8 +193,7 @@ final class Store {
 
     private func checkRecord(_ ex: RoutineExercise, raised: Bool) {
         let k = ex.key
-        let today = workDate
-        guard let idx = data.hist[k]?.firstIndex(where: { $0.date == today }) else { return }
+        guard let idx = entries(k).firstIndex(where: isCurrent) else { return }
         var e = data.hist[k]![idx]
         let best = bestPast(k)
         var top: Double?
@@ -253,6 +262,14 @@ final class Store {
         data.session?.currentKey = next
     }
 
+    /// Con todos los ejercicios del día hechos, el entrenamiento se cierra solo y muestra el resumen.
+    private func finishIfDayComplete() -> Bool {
+        guard let day = sessionDay, !day.exercises.isEmpty,
+              day.exercises.allSatisfy({ status($0).all }) else { return false }
+        finishSession(fromLockScreen: UIApplication.shared.applicationState != .active)
+        return true
+    }
+
     func startSession(dayIndex: Int) {
         guard data.routine.days.indices.contains(dayIndex) else { return }
         if data.session != nil { finishSession(fromLockScreen: false, showSummary: false) }
@@ -260,7 +277,7 @@ final class Store {
         let now = Date()
         data.session = Session(
             dayIndex: dayIndex, dayName: day.name, start: now, date: Dates.key(now),
-            currentKey: nil, confirmingEnd: false, lastActivity: now
+            currentKey: nil, confirmingEnd: false, lastActivity: now, id: UUID()
         )
         let first = nextPendingKey(after: nil)
         data.session?.currentKey = first
@@ -276,7 +293,7 @@ final class Store {
         data.log.append(log)
         data.session = nil
         if showSummary { data.pendingSummary = log.id }
-        purgeDrafts(keeping: nil)
+        purgeDrafts(keepCurrent: false)
         save()
 
         let targets = Activity<WorkoutAttributes>.activities
@@ -303,12 +320,13 @@ final class Store {
         var prs: [PRItem] = []
         for ex in exercises {
             let list = entries(ex.key)
-            guard let e = list.first(where: { $0.date == s.date }) else { continue }
+            let mine = { (e: HistoryEntry) in e.date == s.date && e.session == s.id }
+            guard let e = list.last(where: mine) else { continue }
             let w = e.doneWeights
             if !w.isEmpty { done += 1 }
             sets += w.count
             volume += w.reduce(0, +) * Double(repsNumber(ex.reps))
-            if let pr = e.prW, let prev = list.filter({ $0.date != s.date }).compactMap(\.top).max() {
+            if let pr = e.prW, let prev = list.filter({ !mine($0) }).compactMap(\.top).max() {
                 prs.append(PRItem(name: ex.name, weight: pr, previous: prev))
             }
         }
@@ -319,9 +337,9 @@ final class Store {
     }
 
     /// Borra las anotaciones abiertas que quedaron sin ninguna serie hecha.
-    private func purgeDrafts(keeping date: String?) {
+    private func purgeDrafts(keepCurrent: Bool) {
         for (k, list) in data.hist {
-            let kept = list.filter { $0.hasDone || $0.date == date }
+            let kept = list.filter { $0.hasDone || (keepCurrent && isCurrent($0)) }
             if kept.count != list.count { data.hist[k] = kept.isEmpty ? nil : kept }
         }
     }
@@ -334,7 +352,7 @@ final class Store {
                 finishSession(fromLockScreen: false, end: last)
             }
         }
-        purgeDrafts(keeping: data.session?.date)
+        purgeDrafts(keepCurrent: true)
         save()
         if data.session != nil {
             let running = Activity<WorkoutAttributes>.activities.filter { $0.activityState == .active || $0.activityState == .stale }
@@ -362,6 +380,7 @@ final class Store {
         data.hist[c.ex.key]![idx].done[i] = true
         checkRecord(c.ex, raised: true)
         advanceIfFinished(c.ex)
+        if finishIfDayComplete() { return }
         commit(touch: true)
     }
 
