@@ -9,12 +9,14 @@ enum ActiveSheet: Identifiable, Equatable {
     case exercise(day: Int, index: Int)
     case summary(SessionLog)
     case settings
+    case importer
 
     var id: String {
         switch self {
         case .exercise(let d, let i): "ex-\(d)-\(i)"
         case .summary(let log): "summary-\(log.id)"
         case .settings: "settings"
+        case .importer: "importer"
         }
     }
 }
@@ -35,7 +37,8 @@ struct ContentView: View {
             case .home:
                 HomeView(
                     openDay: { go(.day($0), forward: true) },
-                    openSettings: { sheet = .settings }
+                    openSettings: { sheet = .settings },
+                    openImport: { sheet = .importer }
                 )
                 .transition(slide)
             case .day(let i):
@@ -98,6 +101,8 @@ struct ContentView: View {
                 SummarySheet(log: log)
             case .settings:
                 SettingsSheet()
+            case .importer:
+                ImportSheet()
             }
         }
         .overlay {

@@ -375,7 +375,7 @@ struct ProgressChartBox: View {
             }
             if points.count >= 2 {
                 ProgressChart(points: points)
-                    .frame(height: 92)
+                    .frame(minHeight: 60, maxHeight: .infinity)
                 HStack {
                     Text(Dates.short(points[0].date))
                     Spacer()
@@ -391,6 +391,7 @@ struct ProgressChartBox: View {
             }
         }
         .padding(10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: 14).fill(Palette.bg))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Palette.line, lineWidth: 1))
     }

@@ -41,7 +41,12 @@ struct ExerciseSheet: View {
                     }
                 }
 
-                ProgressChartBox(points: points, today: today)
+                HStack(alignment: .top, spacing: 10) {
+                    ExerciseFigure(name: ex.name)
+                        .frame(width: 150)
+                    ProgressChartBox(points: points, today: today)
+                }
+                .frame(height: 150)
 
                 previousLine(prev)
 

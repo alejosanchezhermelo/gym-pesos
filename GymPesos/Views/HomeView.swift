@@ -4,6 +4,7 @@ import SwiftUI
 struct HomeView: View {
     var openDay: (Int) -> Void
     var openSettings: () -> Void
+    var openImport: () -> Void
 
     private var store: Store { Store.shared }
 
@@ -36,7 +37,8 @@ struct HomeView: View {
                     DockIconButton(systemImage: "gearshape.fill", label: "Ajustes", action: openSettings)
                     LiveButton(dayName: s.dayName, start: s.start) { openDay(s.dayIndex) }
                 } else {
-                    BigButton(title: "Ajustes", systemImage: "gearshape.fill", kind: .secondary, action: openSettings)
+                    DockIconButton(systemImage: "gearshape.fill", label: "Ajustes", action: openSettings)
+                    BigButton(title: "Importar rutina nueva", systemImage: "square.and.arrow.down", kind: .secondary, action: openImport)
                 }
             }
         }

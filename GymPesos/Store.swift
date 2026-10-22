@@ -386,6 +386,21 @@ final class Store {
         for t in tasks { await t.value }
     }
 
+    // MARK: - Importar rutina
+
+    /// Reemplaza la rutina. El historial queda: va por nombre de ejercicio.
+    func applyImport(_ r: ImportedRoutine) {
+        if data.session != nil { finishSession(fromLockScreen: false, showSummary: false) }
+        let days = r.days.map { d in
+            RoutineDay(
+                name: d.name.trimmingCharacters(in: .whitespaces).isEmpty ? "Día" : d.name.trimmingCharacters(in: .whitespaces),
+                exercises: d.exercises.map { RoutineExercise(name: $0.name, series: max(1, $0.series), reps: $0.reps) }
+            )
+        }
+        data.routine = Routine(profe: r.profe.isEmpty ? data.routine.profe : r.profe, days: days)
+        commit()
+    }
+
     // MARK: - Reiniciar estadísticas
 
     func clearDemo() {
