@@ -5,6 +5,21 @@ import SwiftUI
 struct WorkoutAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         var startDate: Date
+        var dayName: String
+        /// Ejercicio actual; nil cuando ya están todos hechos.
+        var exercise: String?
+        var setNumber: Int
+        var setCount: Int
+        var reps: String
+        var weight: Double
+        /// El peso de la serie actual supera el mejor histórico.
+        var recordPace: Bool
+        var doneExercises: Int
+        var totalExercises: Int
+        /// Se tocó "Terminar" y falta confirmar.
+        var confirmingEnd: Bool
+        /// Resumen final ("52:30 · 18 series · 3.240 kg") cuando ya terminó.
+        var finishedSummary: String?
     }
 
     var title: String
@@ -20,6 +35,7 @@ enum Palette {
     static let muted = Color(red: 0x99 / 255, green: 0xa2 / 255, blue: 0x8c / 255)
     static let accent = Color(red: 0xc6 / 255, green: 0xf4 / 255, blue: 0x32 / 255)
     static let accentInk = Color(red: 0x14 / 255, green: 0x1a / 255, blue: 0x03 / 255)
+    static let gold = Color(red: 0xf5 / 255, green: 0xc5 / 255, blue: 0x42 / 255)
     static let warn = Color(red: 0xf2 / 255, green: 0xb8 / 255, blue: 0x4b / 255)
 }
 
@@ -28,4 +44,11 @@ extension Font {
     static func display(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
         .system(size: size, weight: weight).width(.condensed)
     }
+}
+
+/// 42.5 → "42,5"; 40 → "40"
+func fmtW(_ w: Double) -> String {
+    let r = (w * 10).rounded() / 10
+    if r == r.rounded() { return String(Int(r)) }
+    return String(format: "%.1f", r).replacingOccurrences(of: ".", with: ",")
 }
