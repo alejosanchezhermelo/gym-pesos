@@ -3,6 +3,8 @@ name: Compilar IPA
 on:
   push:
     branches: [main]
+    # Los cambios de documentación no generan un build.
+    paths-ignore: ['**.md']
   workflow_dispatch:
 
 permissions:
