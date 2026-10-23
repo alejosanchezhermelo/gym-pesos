@@ -11,11 +11,13 @@ private func timerText(_ start: Date) -> Text {
 struct WorkoutLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: WorkoutAttributes.self) { context in
-            ActivityContentView(state: context.state)
+            Palette.use(context.state.theme)
+            return ActivityContentView(state: context.state)
                 .activityBackgroundTint(Palette.bg)
                 .activitySystemActionForegroundColor(Palette.accent)
         } dynamicIsland: { context in
-            DynamicIsland {
+            Palette.use(context.state.theme)
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     IslandLeading(state: context.state)
                 }

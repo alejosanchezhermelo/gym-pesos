@@ -7,6 +7,7 @@ struct SettingsSheet: View {
     var openImport: () -> Void = {}
 
     @State private var name = ""
+    @AppStorage("themeIcon") private var themeIcon = true
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @State private var armed: ResetTarget?
@@ -57,6 +58,26 @@ struct SettingsSheet: View {
                         .buttonStyle(PressScale())
                     }
                     .foregroundStyle(Palette.fg)
+                }
+
+                section("Tema") {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                        ForEach(AppTheme.allCases) { t in
+                            ThemeSwatch(theme: t, selected: Palette.current == t) { choose(t) }
+                        }
+                    }
+                    Toggle(isOn: $themeIcon) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Cambiar también el ícono")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Palette.fg)
+                            Text("La mancuerna de la pantalla de inicio toma el color del tema. iOS avisa con un cartel cuando cambia.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Palette.muted)
+                        }
+                    }
+                    .tint(Palette.accent)
+                    .onChange(of: themeIcon) { _, on in applyIcon(on ? Palette.current : .lime) }
                 }
 
                 section("Rutina") {
@@ -147,6 +168,23 @@ struct SettingsSheet: View {
                     notifications = await Notifier.status()
                 }
             }
+        }
+    }
+
+    // MARK: Tema
+
+    private func choose(_ t: AppTheme) {
+        guard t != Palette.current else { return }
+        store.setTheme(t)
+        if themeIcon { applyIcon(t) }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    private func applyIcon(_ t: AppTheme) {
+        guard UIApplication.shared.supportsAlternateIcons,
+              UIApplication.shared.alternateIconName != t.iconName else { return }
+        UIApplication.shared.setAlternateIconName(t.iconName) { error in
+            if let error { print("No se pudo cambiar el ícono: \(error)") }
         }
     }
 
@@ -262,5 +300,35 @@ enum ResetTarget: Hashable {
         case .day: "Reiniciar"
         case .all: "Borrar todo"
         }
+    }
+}
+
+/// Muestra de un tema: el fondo, el acento y la mancuerna.
+private struct ThemeSwatch: View {
+    let theme: AppTheme
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        let accent = Color(hex: theme.hexes[5])
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(systemName: "dumbbell.fill")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(accent)
+                    .frame(maxWidth: .infinity, minHeight: 54)
+                    .background(RoundedRectangle(cornerRadius: 14).fill(Color(hex: theme.hexes[0])))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(selected ? accent : Color(hex: theme.hexes[3]), lineWidth: selected ? 3 : 1))
+                Text(theme.title)
+                    .font(.display(13, weight: .bold))
+                    .textCase(.uppercase)
+                    .foregroundStyle(selected ? Palette.fg : Palette.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+        .buttonStyle(PressScale())
+        .accessibilityLabel("Tema \(theme.title)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

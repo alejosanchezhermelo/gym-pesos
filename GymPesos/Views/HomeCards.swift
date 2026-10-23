@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Tarjetas que se deslizan de costado en el inicio.
+/// Tarjetas de colores que se deslizan de costado en el inicio, estilo widgets del iPhone.
 struct HomeCards: View {
     var openDay: (Int) -> Void
     var openBodyWeight: () -> Void
@@ -14,12 +14,10 @@ struct HomeCards: View {
     @AppStorage("homeCard") private var saved: String = Card.week.rawValue
     @State private var position: String?
 
-    private var store: Store { Store.shared }
-
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             ScrollView(.horizontal) {
-                LazyHStack(spacing: 10) {
+                LazyHStack(spacing: 12) {
                     ForEach(Card.allCases) { card in
                         cardView(card)
                             .containerRelativeFrame(.horizontal)
@@ -31,13 +29,16 @@ struct HomeCards: View {
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition(id: $position)
             .scrollIndicators(.hidden)
-            .frame(height: 140)
+            .scrollClipDisabled()
+            .frame(height: 156)
 
             HStack(spacing: 6) {
                 ForEach(Card.allCases) { card in
-                    Circle()
-                        .fill((position ?? saved) == card.rawValue ? Palette.accent : Palette.line)
-                        .frame(width: 7, height: 7)
+                    let on = (position ?? saved) == card.rawValue
+                    Capsule()
+                        .fill(on ? Palette.fg : Palette.line)
+                        .frame(width: on ? 18 : 7, height: 7)
+                        .animation(.spring(response: 0.3), value: on)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -61,35 +62,84 @@ struct HomeCards: View {
     }
 }
 
-/// Marco común de las tarjetas.
-private struct CardBox<Content: View>: View {
+/// Colores de cada tarjeta.
+private enum CardColors {
+    static let ink = Color(hex: 0x111111)
+    static var week: [Color] { [Palette.accent, Palette.accent.opacity(0.72)] }
+    static let near = [Color(hex: 0xFF8A5C), Color(hex: 0xFF4F6D)]
+    static let weight = [Color(hex: 0x6BE8FF), Color(hex: 0x2F9BFF)]
+    static let record = [Color(hex: 0xFFDB6E), Color(hex: 0xF0A12B)]
+    static let month = [Color(hex: 0xC69BFF), Color(hex: 0x8356FF)]
+}
+
+/// Marco de color con degradé, ícono grande de fondo y texto oscuro.
+private struct ColorCard<Content: View>: View {
     let title: String
-    var gold = false
+    let icon: String
+    let colors: [Color]
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).eyebrow(12)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .heavy))
+                Text(title)
+                    .font(.display(14, weight: .heavy))
+                    .tracking(1.6)
+                    .textCase(.uppercase)
+            }
+            .foregroundStyle(CardColors.ink.opacity(0.75))
             content
             Spacer(minLength: 0)
         }
-        .padding(16)
+        .foregroundStyle(CardColors.ink)
+        .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(alignment: .bottomTrailing) {
+            Image(systemName: icon)
+                .font(.system(size: 92, weight: .black))
+                .foregroundStyle(CardColors.ink.opacity(0.1))
+                .rotationEffect(.degrees(-12))
+                .offset(x: 14, y: 18)
+        }
         .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(gold ? Palette.gold.opacity(0.1) : Palette.surface)
+            LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
         )
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(gold ? Palette.gold.opacity(0.6) : Palette.line, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: (colors.first ?? .clear).opacity(0.35), radius: 14, y: 6)
     }
 }
 
-private struct EmptyHint: View {
+private struct Hint: View {
     let text: String
     var body: some View {
         Text(text)
-            .font(.system(size: 15))
-            .foregroundStyle(Palette.muted)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(CardColors.ink.opacity(0.8))
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct Big: View {
+    let text: String
+    var size: CGFloat = 46
+    var body: some View {
+        Text(text)
+            .font(.display(size, weight: .heavy))
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+    }
+}
+
+private struct Small: View {
+    let text: String
+    var body: some View {
+        Text(text)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(CardColors.ink.opacity(0.78))
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
     }
 }
 
@@ -98,28 +148,23 @@ private struct WeekCard: View {
 
     var body: some View {
         let w = store.weekInfo()
-        CardBox(title: "Esta semana") {
-            HStack(alignment: .center, spacing: 10) {
-                HStack(spacing: 6) {
+        ColorCard(title: "Esta semana", icon: "flame.fill", colors: CardColors.week) {
+            HStack(alignment: .center, spacing: 12) {
+                Big(text: "\(w.done)/\(w.goal)")
+                HStack(spacing: 5) {
                     ForEach(0..<w.goal, id: \.self) { i in
                         Circle()
-                            .fill(i < w.done ? Palette.accent : Palette.surface2)
-                            .overlay(Circle().stroke(i < w.done ? Palette.accent : Palette.line, lineWidth: 1.5))
-                            .frame(width: 18, height: 18)
+                            .fill(i < w.done ? CardColors.ink : CardColors.ink.opacity(0.15))
+                            .frame(width: 14, height: 14)
                     }
                 }
-                Text("\(w.done) de \(w.goal)")
-                    .font(.display(30, weight: .bold))
-                    .foregroundStyle(w.done >= w.goal ? Palette.accent : Palette.fg)
             }
             if w.streak > 0 {
-                Text("🔥 \(w.streak) semana\(w.streak == 1 ? "" : "s") seguida\(w.streak == 1 ? "" : "s") cumpliendo tu objetivo")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Palette.warn)
+                Small(text: "🔥 \(w.streak) semana\(w.streak == 1 ? "" : "s") seguida\(w.streak == 1 ? "" : "s") cumpliendo")
+            } else if w.done >= w.goal {
+                Small(text: "¡Objetivo cumplido!")
             } else {
-                Text(w.done >= w.goal ? "¡Objetivo cumplido!" : "Te falta\(w.goal - w.done == 1 ? "" : "n") \(w.goal - w.done) para tu objetivo")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Palette.muted)
+                Small(text: "Te falta\(w.goal - w.done == 1 ? "" : "n") \(w.goal - w.done) para tu objetivo")
             }
         }
     }
@@ -132,25 +177,16 @@ private struct NearRecordCard: View {
     var body: some View {
         if let near = store.nearRecord() {
             Button { openDay(near.dayIndex) } label: {
-                CardBox(title: "Cerca de un récord") {
-                    Text(near.name)
-                        .font(.display(22, weight: .bold))
-                        .textCase(.uppercase)
-                        .foregroundStyle(Palette.fg)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    Text(near.text)
-                        .font(.display(20, weight: .bold))
-                        .foregroundStyle(Palette.accent)
-                    Label("Récord: \(near.record)", systemImage: "medal.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Palette.gold)
+                ColorCard(title: "Cerca de un récord", icon: "target", colors: CardColors.near) {
+                    Big(text: near.text.replacingOccurrences(of: "Te faltan ", with: "−").replacingOccurrences(of: "Te falta ", with: "−"), size: 40)
+                    Small(text: near.name)
+                    Small(text: "Récord: \(near.record)")
                 }
             }
             .buttonStyle(PressScale())
         } else {
-            CardBox(title: "Cerca de un récord") {
-                EmptyHint(text: "Cuando hayas hecho un ejercicio un par de veces, acá te digo cuánto te falta para tu récord.")
+            ColorCard(title: "Cerca de un récord", icon: "target", colors: CardColors.near) {
+                Hint(text: "Cuando hayas hecho un ejercicio un par de veces, acá te digo cuánto te falta para tu récord.")
             }
         }
     }
@@ -163,31 +199,23 @@ private struct BodyWeightCard: View {
     var body: some View {
         let list = store.data.bodyWeights ?? []
         Button(action: openBodyWeight) {
-            CardBox(title: "Peso corporal") {
+            ColorCard(title: "Peso corporal", icon: "scalemass.fill", colors: CardColors.weight) {
                 if let last = list.last {
-                    HStack(alignment: .bottom, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            (Text(fmtW(last.kg)).font(.display(36, weight: .bold))
-                                + Text(" kg").font(.display(16, weight: .semibold)).foregroundColor(Palette.muted))
-                                .foregroundStyle(Palette.fg)
-                            Text(relativeDay(last.date).capitalized(with: Locale(identifier: "es_AR")))
-                                .font(.system(size: 13))
-                                .foregroundStyle(Palette.muted)
-                        }
-                        Spacer()
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Big(text: fmtW(last.kg))
+                        Text("kg").font(.display(20, weight: .heavy))
                         if list.count >= 2 {
-                            Sparkline(points: list.suffix(10).map { ProgressPoint(date: Dates.key($0.date), weight: $0.kg) })
-                                .frame(width: 90, height: 34)
+                            let diff = last.kg - list[list.count - 2].kg
+                            Text("\(diff >= 0 ? "▲" : "▼") \(fmtW(abs(diff)))")
+                                .font(.display(17, weight: .heavy))
+                                .foregroundStyle(CardColors.ink.opacity(0.7))
+                                .padding(.leading, 6)
                         }
                     }
-                    Text("Tocá para actualizar")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Palette.accent)
+                    Small(text: "\(relativeDay(last.date).capitalized(with: Locale(identifier: "es_AR"))) · tocá para actualizar")
                 } else {
-                    EmptyHint(text: "Cargá tu peso para ver tu evolución y cuánto levantás en relación a tu peso.")
-                    Text("Cargar peso")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Palette.accent)
+                    Big(text: "— kg", size: 40)
+                    Small(text: "Tocá para cargar tu peso")
                 }
             }
         }
@@ -199,31 +227,13 @@ private struct LastRecordCard: View {
     private var store: Store { Store.shared }
 
     var body: some View {
-        if let last = store.lastRecord() {
-            CardBox(title: "Último récord", gold: true) {
-                HStack(spacing: 8) {
-                    Image(systemName: "medal.fill")
-                        .font(.system(size: 26))
-                        .foregroundStyle(Palette.gold)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(last.pr.name)
-                            .font(.display(20, weight: .bold))
-                            .textCase(.uppercase)
-                            .foregroundStyle(Palette.fg)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                        Text(last.pr.text ?? "\(fmtW(last.pr.weight)) kg")
-                            .font(.display(22, weight: .bold))
-                            .foregroundStyle(Palette.gold)
-                    }
-                }
-                Text(relativeDay(last.date).capitalized(with: Locale(identifier: "es_AR")))
-                    .font(.system(size: 13))
-                    .foregroundStyle(Palette.muted)
-            }
-        } else {
-            CardBox(title: "Último récord", gold: true) {
-                EmptyHint(text: "Todavía no hay récords. ¡El primero puede ser hoy!")
+        ColorCard(title: "Último récord", icon: "medal.fill", colors: CardColors.record) {
+            if let last = store.lastRecord() {
+                Big(text: last.pr.text ?? "\(fmtW(last.pr.weight)) kg", size: 38)
+                Small(text: last.pr.name)
+                Small(text: relativeDay(last.date).capitalized(with: Locale(identifier: "es_AR")))
+            } else {
+                Hint(text: "Todavía no hay récords. ¡El primero puede ser hoy!")
             }
         }
     }
@@ -236,31 +246,25 @@ private struct MonthCard: View {
     var body: some View {
         let m = store.monthStats(offset: 0)
         Button(action: showProgress) {
-            CardBox(title: "Este mes") {
-                HStack(spacing: 18) {
+            ColorCard(title: "Este mes", icon: "calendar", colors: CardColors.month) {
+                HStack(alignment: .firstTextBaseline, spacing: 18) {
                     stat("\(m?.days ?? 0)", "días")
                     stat(fmtThousands(m?.volume ?? 0), "kg")
                     stat("\(m?.records ?? 0)", "récords")
                 }
-                Text("Ver progreso ›")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Palette.accent)
+                Small(text: "Ver progreso ›")
             }
         }
         .buttonStyle(PressScale())
     }
 
     private func stat(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(value)
-                .font(.display(30, weight: .bold))
-                .foregroundStyle(Palette.fg)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
+        VStack(alignment: .leading, spacing: -2) {
+            Big(text: value, size: 34)
             Text(label)
-                .font(.display(12, weight: .semibold))
+                .font(.display(13, weight: .heavy))
                 .textCase(.uppercase)
-                .foregroundStyle(Palette.muted)
+                .foregroundStyle(CardColors.ink.opacity(0.7))
         }
     }
 }

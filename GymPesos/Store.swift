@@ -31,6 +31,7 @@ final class Store {
         let url = dir.appendingPathComponent("gympesos.json")
         fileURL = url
         data = Store.load(from: url, backupDir: dir)
+        Palette.use(data.theme)
     }
 
     private static func load(from url: URL, backupDir: URL) -> AppData {
@@ -617,6 +618,12 @@ final class Store {
         save()
     }
 
+    func setTheme(_ theme: AppTheme) {
+        Palette.use(theme.rawValue)
+        data.theme = theme.rawValue
+        commit()
+    }
+
     func setWeeklyGoal(_ n: Int) {
         data.weeklyGoal = min(7, max(1, n))
         save()
@@ -701,6 +708,7 @@ final class Store {
             totalExercises: day?.exercises.count ?? 0,
             confirmingEnd: s.confirmingEnd, finishedSummary: nil
         )
+        st.theme = Palette.current.rawValue
         if let c = current {
             let e = entryOrSeed(c.ex, dayName: c.day.name)
             if let i = currentSetIndex(e, series: c.ex.series) {
@@ -721,11 +729,13 @@ final class Store {
     private func finishedState(_ s: Session, _ log: SessionLog) -> WorkoutAttributes.ContentState {
         var summary = "\(formatElapsed(log.duration)) · \(log.sets) series · \(fmtThousands(log.volume)) kg"
         if !log.prs.isEmpty { summary += " · \(log.prs.count) récord\(log.prs.count > 1 ? "s" : "")" }
-        return WorkoutAttributes.ContentState(
+        var st = WorkoutAttributes.ContentState(
             startDate: s.start, dayName: s.dayName, exercise: nil, setNumber: 0, setCount: 0,
             reps: "", weight: 0, recordPace: false, setReps: 0, bodyweight: false, superset: false, doneExercises: log.exercisesDone,
             totalExercises: log.exercisesTotal, confirmingEnd: false, finishedSummary: summary
         )
+        st.theme = Palette.current.rawValue
+        return st
     }
 
     /// Las actualizaciones van en fila para que lleguen en orden.

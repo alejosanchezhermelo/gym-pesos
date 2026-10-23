@@ -39,6 +39,7 @@ struct ContentView: View {
         ZStack {
             Palette.bg.ignoresSafeArea()
 
+            Group {
             switch screen {
             case .home:
                 HomeView(
@@ -64,6 +65,8 @@ struct ContentView: View {
                 )
                 .transition(slide)
             }
+            }
+            .id(store.data.theme ?? "lime")
 
             if sheet == nil, let c = store.celebration {
                 MedalOverlay(celebration: c)
@@ -124,6 +127,7 @@ struct ContentView: View {
                 SummarySheet(log: log, allowDelete: true)
             }
         }
+        .id(store.data.theme ?? "lime")
         .overlay {
             if let c = store.celebration {
                 MedalOverlay(celebration: c)

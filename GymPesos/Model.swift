@@ -144,6 +144,8 @@ struct AppData: Codable {
     var userName: String?
     /// Entrenamientos por semana que querés hacer.
     var weeklyGoal: Int?
+    /// Tema de colores (AppTheme).
+    var theme: String?
 
     static func initial() -> AppData {
         AppData(
