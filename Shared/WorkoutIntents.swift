@@ -11,16 +11,24 @@ struct AdjustWeightIntent: LiveActivityIntent {
     @Parameter(title: "Subir")
     var up: Bool
 
+    @Parameter(title: "Ejercicio")
+    var exercise: String
+
+    @Parameter(title: "Serie")
+    var setNumber: Int
+
     init() {}
 
-    init(up: Bool) {
+    init(up: Bool, exercise: String, setNumber: Int) {
         self.up = up
+        self.exercise = exercise
+        self.setNumber = setNumber
     }
 
     @MainActor
     func perform() async throws -> some IntentResult {
         #if APP_TARGET
-        Store.shared.adjustCurrentWeight(up: up)
+        Store.shared.adjustCurrentWeight(up: up, exercise: exercise, setNumber: setNumber)
         await Store.shared.drain()
         #endif
         return .result()
@@ -31,12 +39,23 @@ struct CompleteSetIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Serie hecha"
     static let isDiscoverable = false
 
+    @Parameter(title: "Ejercicio")
+    var exercise: String
+
+    @Parameter(title: "Serie")
+    var setNumber: Int
+
     init() {}
+
+    init(exercise: String, setNumber: Int) {
+        self.exercise = exercise
+        self.setNumber = setNumber
+    }
 
     @MainActor
     func perform() async throws -> some IntentResult {
         #if APP_TARGET
-        Store.shared.completeCurrentSet()
+        Store.shared.completeCurrentSet(exercise: exercise, setNumber: setNumber)
         await Store.shared.drain()
         #endif
         return .result()
@@ -47,12 +66,19 @@ struct SkipExerciseIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Saltar ejercicio"
     static let isDiscoverable = false
 
+    @Parameter(title: "Ejercicio")
+    var exercise: String
+
     init() {}
+
+    init(exercise: String) {
+        self.exercise = exercise
+    }
 
     @MainActor
     func perform() async throws -> some IntentResult {
         #if APP_TARGET
-        Store.shared.skipCurrentExercise()
+        Store.shared.skipCurrentExercise(exercise: exercise)
         await Store.shared.drain()
         #endif
         return .result()

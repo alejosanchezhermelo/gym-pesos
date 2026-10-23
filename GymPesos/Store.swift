@@ -364,17 +364,26 @@ final class Store {
 
     // MARK: - Botones de la pantalla de bloqueo
 
-    func adjustCurrentWeight(up: Bool) {
+    /// Cada botón dice qué ejercicio y serie estaba mostrando. Si ya no coincide
+    /// (toque repetido, o el reloj mostraba algo viejo), no se hace nada y solo se refresca.
+    private func matchesShown(_ exercise: String, _ setNumber: Int) -> Bool {
+        guard let c = current else { return false }
+        let e = entryOrSeed(c.ex, dayName: c.day.name)
+        guard let i = currentSetIndex(e, series: c.ex.series) else { return false }
+        return c.ex.name == exercise && i + 1 == setNumber
+    }
+
+    func adjustCurrentWeight(up: Bool, exercise: String, setNumber: Int) {
         guard data.session != nil else { return endAllActivities() }
-        guard let c = current else { return }
+        guard matchesShown(exercise, setNumber), let c = current else { return pushLiveActivity() }
         let e = entryOrSeed(c.ex, dayName: c.day.name)
         guard let i = currentSetIndex(e, series: c.ex.series) else { return }
         changeWeight(c.ex, dayName: c.day.name, set: i, up: up)
     }
 
-    func completeCurrentSet() {
+    func completeCurrentSet(exercise: String, setNumber: Int) {
         guard data.session != nil else { return endAllActivities() }
-        guard let c = current else { return }
+        guard matchesShown(exercise, setNumber), let c = current else { return pushLiveActivity() }
         let idx = ensureEntry(c.ex, dayName: c.day.name)
         guard let i = currentSetIndex(data.hist[c.ex.key]![idx], series: c.ex.series) else { return }
         data.hist[c.ex.key]![idx].done[i] = true
@@ -384,8 +393,9 @@ final class Store {
         commit(touch: true)
     }
 
-    func skipCurrentExercise() {
+    func skipCurrentExercise(exercise: String) {
         guard data.session != nil else { return endAllActivities() }
+        guard current?.ex.name == exercise else { return pushLiveActivity() }
         let next = nextPendingKey(after: data.session?.currentKey)
         data.session?.currentKey = next
         commit()

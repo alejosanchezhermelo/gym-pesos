@@ -114,7 +114,7 @@ struct LockScreenActivityView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 Spacer(minLength: 4)
-                Button(intent: SkipExerciseIntent()) {
+                Button(intent: SkipExerciseIntent(exercise: state.exercise ?? "")) {
                     SmallChip(title: "Saltar", systemImage: "forward.fill")
                 }
                 .buttonStyle(.plain)
@@ -124,17 +124,17 @@ struct LockScreenActivityView: View {
                 .buttonStyle(.plain)
             }
             HStack(spacing: 8) {
-                Button(intent: AdjustWeightIntent(up: false)) {
+                Button(intent: AdjustWeightIntent(up: false, exercise: state.exercise ?? "", setNumber: state.setNumber)) {
                     StepperKey(systemImage: "minus")
                 }
                 .buttonStyle(.plain)
                 WeightLabel(weight: state.weight, record: state.recordPace, size: 30)
                     .frame(minWidth: 64)
-                Button(intent: AdjustWeightIntent(up: true)) {
+                Button(intent: AdjustWeightIntent(up: true, exercise: state.exercise ?? "", setNumber: state.setNumber)) {
                     StepperKey(systemImage: "plus")
                 }
                 .buttonStyle(.plain)
-                Button(intent: CompleteSetIntent()) {
+                Button(intent: CompleteSetIntent(exercise: state.exercise ?? "", setNumber: state.setNumber)) {
                     WideKey(title: "Serie hecha", systemImage: "checkmark", fill: Palette.accent, ink: Palette.accentInk)
                 }
                 .buttonStyle(.plain)
@@ -239,7 +239,7 @@ struct WatchActivityView: View {
                             .foregroundStyle(state.recordPace ? Palette.gold : Palette.fg)
                     }
                     Spacer(minLength: 2)
-                    Button(intent: CompleteSetIntent()) {
+                    Button(intent: CompleteSetIntent(exercise: state.exercise ?? "", setNumber: state.setNumber)) {
                         Image(systemName: "checkmark")
                             .font(.system(size: 16, weight: .heavy))
                             .foregroundStyle(Palette.accentInk)
@@ -321,17 +321,17 @@ struct IslandBottom: View {
                 }
             } else if state.exercise != nil {
                 HStack(spacing: 8) {
-                    Button(intent: AdjustWeightIntent(up: false)) {
+                    Button(intent: AdjustWeightIntent(up: false, exercise: state.exercise ?? "", setNumber: state.setNumber)) {
                         StepperKey(systemImage: "minus")
                     }
                     .buttonStyle(.plain)
                     WeightLabel(weight: state.weight, record: state.recordPace, size: 26)
                         .frame(minWidth: 58)
-                    Button(intent: AdjustWeightIntent(up: true)) {
+                    Button(intent: AdjustWeightIntent(up: true, exercise: state.exercise ?? "", setNumber: state.setNumber)) {
                         StepperKey(systemImage: "plus")
                     }
                     .buttonStyle(.plain)
-                    Button(intent: CompleteSetIntent()) {
+                    Button(intent: CompleteSetIntent(exercise: state.exercise ?? "", setNumber: state.setNumber)) {
                         WideKey(title: "Serie hecha", systemImage: "checkmark", fill: Palette.accent, ink: Palette.accentInk)
                     }
                     .buttonStyle(.plain)
