@@ -93,8 +93,10 @@ private struct ExerciseCard: View {
 
     var body: some View {
         let st = store.status(ex)
-        let shown = st.done > 0 ? store.todayEntry(ex.key)?.top : store.lastEntry(ex.key, excludingToday: true)?.top
-        let points = Array(store.progress(ex.key).suffix(8))
+        let shownEntry = st.done > 0 ? store.todayEntry(ex.key) : store.lastEntry(ex.key, excludingToday: true)
+        let best = shownEntry.flatMap { store.bestDone($0, ex) }
+        let shown: Double? = best.map { ex.isBodyweight ? Double($0.reps) : $0.weight }
+        let points = Array(store.progress(ex).suffix(8))
         Button(action: open) {
             HStack(spacing: 14) {
                 CheckCircle(status: st, series: ex.series)
@@ -120,7 +122,7 @@ private struct ExerciseCard: View {
                         .font(.display(11, weight: .semibold))
                         .tracking(1.3)
                         .textCase(.uppercase)
-                    weightText(shown, st)
+                    weightText(shown, st, unit: ex.isBodyweight ? "reps" : "kg")
                 }
             }
             .padding(16)
@@ -152,10 +154,10 @@ private struct ExerciseCard: View {
         }
     }
 
-    private func weightText(_ shown: Double?, _ st: ExerciseStatus) -> some View {
+    private func weightText(_ shown: Double?, _ st: ExerciseStatus, unit: String) -> some View {
         let color: Color = st.record != nil ? Palette.gold : (st.all ? Palette.accent : Palette.fg)
         return (Text(shown.map(fmtW) ?? "—").font(.display(34, weight: .bold)).foregroundColor(color)
-            + Text(shown == nil ? "" : "kg").font(.display(15, weight: .semibold)).foregroundColor(Palette.muted))
+            + Text(shown == nil ? "" : unit).font(.display(15, weight: .semibold)).foregroundColor(Palette.muted))
             .monospacedDigit()
     }
 }

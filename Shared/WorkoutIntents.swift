@@ -35,6 +35,37 @@ struct AdjustWeightIntent: LiveActivityIntent {
     }
 }
 
+struct AdjustRepsIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Cambiar las reps de la serie"
+    static let isDiscoverable = false
+
+    @Parameter(title: "Subir")
+    var up: Bool
+
+    @Parameter(title: "Ejercicio")
+    var exercise: String
+
+    @Parameter(title: "Serie")
+    var setNumber: Int
+
+    init() {}
+
+    init(up: Bool, exercise: String, setNumber: Int) {
+        self.up = up
+        self.exercise = exercise
+        self.setNumber = setNumber
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        #if APP_TARGET
+        Store.shared.adjustCurrentReps(up: up, exercise: exercise, setNumber: setNumber)
+        await Store.shared.drain()
+        #endif
+        return .result()
+    }
+}
+
 struct CompleteSetIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Serie hecha"
     static let isDiscoverable = false

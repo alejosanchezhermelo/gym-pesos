@@ -18,9 +18,37 @@ struct RoutineExercise: Codable, Equatable, Identifiable {
     var name: String
     var series: Int
     var reps: String
+    /// Se hace con el peso del cuerpo (cuentan las reps). nil = se decide por el nombre.
+    var bodyweight: Bool?
 
     /// Clave del historial: el nombre sin tildes ni mayúsculas.
     var key: String { exerciseKey(name) }
+
+    var isBodyweight: Bool { bodyweight ?? looksBodyweight(name) }
+
+    /// Reps objetivo de cada serie según la planilla ("12" → 12 en todas; "12-10-8" con 3 series → 12, 10, 8).
+    var targetReps: [Int] {
+        let numbers = reps.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
+        if numbers.count == series { return numbers }
+        return Array(repeating: numbers.max() ?? 10, count: max(series, 1))
+    }
+}
+
+/// Flexiones, fondos, dominadas y abdominales se hacen sin peso.
+func looksBodyweight(_ name: String) -> Bool {
+    let k = exerciseKey(name)
+    return ["flexion", "fondo", "dominada", "abdominal", "crunch", "plancha", "burpee"].contains { k.contains($0) }
+}
+
+/// Puntaje de una serie: gana más peso y, con el mismo peso, más reps.
+/// En los ejercicios sin peso el peso es 0, así que cuentan solo las reps.
+struct SetScore: Comparable, Hashable {
+    var weight: Double
+    var reps: Int
+
+    static func < (a: SetScore, b: SetScore) -> Bool {
+        (a.weight, a.reps) < (b.weight, b.reps)
+    }
 }
 
 // MARK: - Historial
@@ -31,16 +59,25 @@ struct HistoryEntry: Codable, Equatable {
     var date: String
     var sets: [Double]
     var done: [Bool]
-    /// Récord logrado ese día (el mejor peso que superó al histórico).
+    /// Récord logrado ese día (la mejor serie que superó al histórico): peso y reps.
     var prW: Double?
+    var prR: Int?
+    /// Reps hechas en cada serie. nil en anotaciones viejas (se toman las de la planilla).
+    var reps: [Int]?
     /// Día de la rutina en que se anotó. nil en los pesos de ejemplo.
     var day: String?
     /// Entrenamiento al que pertenece. nil si se anotó sin arrancar uno.
     var session: UUID?
 
-    var doneWeights: [Double] { zip(sets, done).filter { $0.1 }.map { $0.0 } }
-    var top: Double? { doneWeights.max() }
     var hasDone: Bool { done.contains(true) }
+
+    var doneIndices: [Int] { sets.indices.filter { $0 < done.count && done[$0] } }
+
+    func repsAt(_ i: Int, fallback: [Int]) -> Int {
+        if let reps, reps.indices.contains(i) { return reps[i] }
+        if fallback.indices.contains(i) { return fallback[i] }
+        return fallback.last ?? 0
+    }
 }
 
 struct Session: Codable, Equatable {
@@ -61,6 +98,9 @@ struct PRItem: Codable, Equatable, Hashable {
     var name: String
     var weight: Double
     var previous: Double
+    /// "45 kg × 10" o "15 reps".
+    var text: String?
+    var previousText: String?
 }
 
 struct SessionLog: Codable, Equatable, Identifiable {
@@ -107,7 +147,7 @@ struct AppData: Codable {
 struct ExerciseStatus {
     var done: Int
     var all: Bool
-    var record: Double?
+    var record: SetScore?
 }
 
 struct ProgressPoint: Hashable {
@@ -161,10 +201,9 @@ func fmtThousands(_ value: Double) -> String {
     return f.string(from: NSNumber(value: value.rounded())) ?? String(Int(value.rounded()))
 }
 
-/// Primer número de las repeticiones ("12" → 12, "10-12" → 10). 0 si no hay.
-func repsNumber(_ reps: String) -> Int {
-    let digits = reps.drop { !$0.isNumber }.prefix { $0.isNumber }
-    return Int(digits) ?? 0
+/// "45 kg × 10" o, sin peso, "15 reps".
+func scoreText(_ s: SetScore, bodyweight: Bool) -> String {
+    bodyweight ? "\(s.reps) reps" : "\(fmtW(s.weight)) kg × \(s.reps)"
 }
 
 // MARK: - Datos de ejemplo: planilla de Roberto (Plantilla_Rutinas_PROFE.pdf)

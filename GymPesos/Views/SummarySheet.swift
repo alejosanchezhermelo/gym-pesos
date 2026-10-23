@@ -66,10 +66,10 @@ struct SummarySheet: View {
                                 Text(pr.name)
                                     .foregroundStyle(Palette.fg)
                                 Spacer()
-                                Text("\(fmtW(pr.weight)) kg")
+                                Text(pr.text ?? "\(fmtW(pr.weight)) kg")
                                     .font(.display(20, weight: .bold))
                                     .foregroundStyle(Palette.gold)
-                                Text("antes \(fmtW(pr.previous))")
+                                Text("antes \(pr.previousText ?? fmtW(pr.previous))")
                                     .font(.system(size: 13))
                                     .foregroundStyle(Palette.muted)
                             }

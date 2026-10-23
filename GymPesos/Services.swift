@@ -13,10 +13,10 @@ enum Notifier {
         await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 
-    static func record(name: String, weight: Double, previous: Double) async {
+    static func record(name: String, text: String, previous: String) async {
         let content = UNMutableNotificationContent()
         content.title = "🏅 ¡Nuevo récord!"
-        content.body = "\(name) · \(fmtW(weight)) kg (antes \(fmtW(previous)) kg)"
+        content.body = "\(name) · \(text) (antes \(previous))"
         content.sound = .default
         let request = UNNotificationRequest(identifier: "record-\(UUID().uuidString)", content: content, trigger: nil)
         try? await UNUserNotificationCenter.current().add(request)

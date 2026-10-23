@@ -12,8 +12,12 @@ struct WorkoutAttributes: ActivityAttributes {
         var setCount: Int
         var reps: String
         var weight: Double
-        /// El peso de la serie actual supera el mejor histórico.
+        /// La serie actual (peso y reps) supera la mejor histórica.
         var recordPace: Bool
+        /// Reps de la serie actual.
+        var setReps: Int
+        /// Ejercicio sin peso: se muestran solo las reps.
+        var bodyweight: Bool
         var doneExercises: Int
         var totalExercises: Int
         /// Se tocó "Terminar" y falta confirmar.

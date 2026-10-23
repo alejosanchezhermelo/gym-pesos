@@ -75,6 +75,11 @@ struct LockScreenActivityView: View {
                     .foregroundStyle(Palette.fg)
                     .lineLimit(1)
                 Spacer(minLength: 4)
+                if state.exercise != nil && state.finishedSummary == nil && !state.confirmingEnd {
+                    Text("S\(state.setNumber)/\(state.setCount)")
+                        .font(.display(16, weight: .bold))
+                        .foregroundStyle(Palette.muted)
+                }
                 if state.finishedSummary == nil {
                     timerText(state.startDate)
                         .font(.display(24, weight: .bold))
@@ -104,38 +109,19 @@ struct LockScreenActivityView: View {
     }
 
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
+            SetSteppers(state: state, key: 44, size: 28)
             HStack(spacing: 6) {
-                Text("Serie \(state.setNumber) de \(state.setCount) · \(state.reps) reps")
-                    .font(.display(14, weight: .semibold))
-                    .tracking(0.8)
-                    .textCase(.uppercase)
-                    .foregroundStyle(Palette.muted)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Spacer(minLength: 4)
+                Button(intent: CompleteSetIntent(exercise: state.exercise ?? "", setNumber: state.setNumber)) {
+                    WideKey(title: "Serie hecha", systemImage: "checkmark", fill: Palette.accent, ink: Palette.accentInk, height: 40)
+                }
+                .buttonStyle(.plain)
                 Button(intent: SkipExerciseIntent(exercise: state.exercise ?? "")) {
-                    SmallChip(title: "Saltar", systemImage: "forward.fill")
+                    SmallChip(title: "Saltar", systemImage: "forward.fill", height: 40)
                 }
                 .buttonStyle(.plain)
                 Button(intent: AskEndIntent()) {
-                    SmallChip(title: "Terminar", systemImage: nil)
-                }
-                .buttonStyle(.plain)
-            }
-            HStack(spacing: 8) {
-                Button(intent: AdjustWeightIntent(up: false, exercise: state.exercise ?? "", setNumber: state.setNumber)) {
-                    StepperKey(systemImage: "minus")
-                }
-                .buttonStyle(.plain)
-                WeightLabel(weight: state.weight, record: state.recordPace, size: 30)
-                    .frame(minWidth: 64)
-                Button(intent: AdjustWeightIntent(up: true, exercise: state.exercise ?? "", setNumber: state.setNumber)) {
-                    StepperKey(systemImage: "plus")
-                }
-                .buttonStyle(.plain)
-                Button(intent: CompleteSetIntent(exercise: state.exercise ?? "", setNumber: state.setNumber)) {
-                    WideKey(title: "Serie hecha", systemImage: "checkmark", fill: Palette.accent, ink: Palette.accentInk)
+                    SmallChip(title: "Terminar", systemImage: nil, height: 40)
                 }
                 .buttonStyle(.plain)
             }
@@ -234,8 +220,10 @@ struct WatchActivityView: View {
                             .font(.display(11, weight: .semibold))
                             .textCase(.uppercase)
                             .foregroundStyle(Palette.muted)
-                        Text("\(fmtW(state.weight)) kg")
+                        Text(state.bodyweight ? "\(state.setReps) reps" : "\(fmtW(state.weight)) kg × \(state.setReps)")
                             .font(.display(20, weight: .bold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                             .foregroundStyle(state.recordPace ? Palette.gold : Palette.fg)
                     }
                     Spacer(minLength: 2)
@@ -320,19 +308,10 @@ struct IslandBottom: View {
                     .buttonStyle(.plain)
                 }
             } else if state.exercise != nil {
-                HStack(spacing: 8) {
-                    Button(intent: AdjustWeightIntent(up: false, exercise: state.exercise ?? "", setNumber: state.setNumber)) {
-                        StepperKey(systemImage: "minus")
-                    }
-                    .buttonStyle(.plain)
-                    WeightLabel(weight: state.weight, record: state.recordPace, size: 26)
-                        .frame(minWidth: 58)
-                    Button(intent: AdjustWeightIntent(up: true, exercise: state.exercise ?? "", setNumber: state.setNumber)) {
-                        StepperKey(systemImage: "plus")
-                    }
-                    .buttonStyle(.plain)
+                VStack(spacing: 6) {
+                    SetSteppers(state: state, key: 38, size: 24)
                     Button(intent: CompleteSetIntent(exercise: state.exercise ?? "", setNumber: state.setNumber)) {
-                        WideKey(title: "Serie hecha", systemImage: "checkmark", fill: Palette.accent, ink: Palette.accentInk)
+                        WideKey(title: "Serie hecha", systemImage: "checkmark", fill: Palette.accent, ink: Palette.accentInk, height: 38)
                     }
                     .buttonStyle(.plain)
                 }
@@ -369,12 +348,13 @@ struct CompactTrailing: View {
 
 struct StepperKey: View {
     let systemImage: String
+    var size: CGFloat = 46
 
     var body: some View {
         Image(systemName: systemImage)
-            .font(.system(size: 20, weight: .bold))
+            .font(.system(size: size * 0.42, weight: .bold))
             .foregroundStyle(Palette.fg)
-            .frame(width: 46, height: 46)
+            .frame(width: size, height: size)
             .background(RoundedRectangle(cornerRadius: 12).fill(Palette.surface2))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Palette.line, lineWidth: 1))
     }
@@ -385,6 +365,7 @@ struct WideKey: View {
     let systemImage: String?
     let fill: Color
     let ink: Color
+    var height: CGFloat = 46
 
     var body: some View {
         HStack(spacing: 6) {
@@ -399,7 +380,7 @@ struct WideKey: View {
                 .minimumScaleFactor(0.8)
         }
         .foregroundStyle(ink)
-        .frame(maxWidth: .infinity, minHeight: 46)
+        .frame(maxWidth: .infinity, minHeight: height)
         .background(RoundedRectangle(cornerRadius: 12).fill(fill))
     }
 }
@@ -407,6 +388,7 @@ struct WideKey: View {
 struct SmallChip: View {
     let title: String
     let systemImage: String?
+    var height: CGFloat = 28
 
     var body: some View {
         HStack(spacing: 4) {
@@ -420,30 +402,69 @@ struct SmallChip: View {
         }
         .foregroundStyle(Palette.fg)
         .padding(.horizontal, 10)
-        .frame(height: 28)
+        .frame(height: height)
         .background(Capsule().fill(Palette.surface2))
         .overlay(Capsule().stroke(Palette.line, lineWidth: 1))
     }
 }
 
-struct WeightLabel: View {
-    let weight: Double
+struct ValueLabel: View {
+    let value: String
+    let unit: String
     let record: Bool
     let size: CGFloat
 
     var body: some View {
         VStack(spacing: -2) {
-            Text(fmtW(weight))
+            Text(value)
                 .font(.display(size, weight: .bold))
                 .monospacedDigit()
                 .foregroundStyle(record ? Palette.gold : Palette.fg)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            Text(record ? "kg · récord" : "kg")
+            Text(record ? "\(unit) · récord" : unit)
                 .font(.display(10, weight: .bold))
                 .tracking(0.8)
                 .textCase(.uppercase)
                 .foregroundStyle(record ? Palette.gold : Palette.muted)
+                .lineLimit(1)
+        }
+    }
+}
+
+/// [−] 42,5 kg [+]   [−] 12 reps [+]  (sin peso: solo las reps).
+struct SetSteppers: View {
+    let state: WorkoutAttributes.ContentState
+    let key: CGFloat
+    let size: CGFloat
+
+    var body: some View {
+        let ex = state.exercise ?? ""
+        HStack(spacing: 6) {
+            if !state.bodyweight {
+                Button(intent: AdjustWeightIntent(up: false, exercise: ex, setNumber: state.setNumber)) {
+                    StepperKey(systemImage: "minus", size: key)
+                }
+                .buttonStyle(.plain)
+                ValueLabel(value: fmtW(state.weight), unit: "kg", record: state.recordPace, size: size)
+                    .frame(minWidth: 50)
+                Button(intent: AdjustWeightIntent(up: true, exercise: ex, setNumber: state.setNumber)) {
+                    StepperKey(systemImage: "plus", size: key)
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 4)
+            Button(intent: AdjustRepsIntent(up: false, exercise: ex, setNumber: state.setNumber)) {
+                StepperKey(systemImage: "minus", size: key)
+            }
+            .buttonStyle(.plain)
+            ValueLabel(value: "\(state.setReps)", unit: "reps", record: state.recordPace, size: size)
+                .frame(minWidth: 40)
+            Button(intent: AdjustRepsIntent(up: true, exercise: ex, setNumber: state.setNumber)) {
+                StepperKey(systemImage: "plus", size: key)
+            }
+            .buttonStyle(.plain)
+            if state.bodyweight { Spacer(minLength: 4) }
         }
     }
 }

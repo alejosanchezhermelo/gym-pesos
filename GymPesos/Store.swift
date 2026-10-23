@@ -6,8 +6,9 @@ import UIKit
 struct Celebration: Identifiable, Equatable {
     let id = UUID()
     let name: String
-    let weight: Double
-    let previous: Double
+    /// "45 kg × 10" o "15 reps".
+    let text: String
+    let previous: String
 }
 
 /// Todo el estado de la app. Lo usan las pantallas y también los botones de la
@@ -80,36 +81,63 @@ final class Store {
         entries(k).last { $0.hasDone && !(excludingToday && isCurrent($0)) }
     }
 
-    /// Mejor peso de todas las veces anteriores (incluso de otro entrenamiento hoy).
-    func bestPast(_ k: String) -> Double? {
-        entries(k).filter { !isCurrent($0) }.compactMap(\.top).max()
+    func score(_ e: HistoryEntry, _ i: Int, _ ex: RoutineExercise) -> SetScore {
+        SetScore(weight: ex.isBodyweight ? 0 : e.sets[i], reps: e.repsAt(i, fallback: ex.targetReps))
     }
 
-    func progress(_ k: String) -> [ProgressPoint] {
-        entries(k)
+    /// La mejor serie hecha de una anotación.
+    func bestDone(_ e: HistoryEntry, _ ex: RoutineExercise) -> SetScore? {
+        e.doneIndices.map { score(e, $0, ex) }.max()
+    }
+
+    /// Mejor serie de todas las veces anteriores (incluso de otro entrenamiento hoy).
+    func bestPast(_ ex: RoutineExercise) -> SetScore? {
+        entries(ex.key).filter { !isCurrent($0) }.compactMap { bestDone($0, ex) }.max()
+    }
+
+    /// Para el gráfico: el mejor peso de cada vez, o las mejores reps si es sin peso.
+    func progress(_ ex: RoutineExercise) -> [ProgressPoint] {
+        entries(ex.key)
             .enumerated()
             .filter { $0.element.hasDone }
             .sorted { ($0.element.date, $0.offset) < ($1.element.date, $1.offset) }
-            .compactMap { item in item.element.top.map { ProgressPoint(date: item.element.date, weight: $0) } }
+            .compactMap { item in
+                bestDone(item.element, ex).map {
+                    ProgressPoint(date: item.element.date, weight: ex.isBodyweight ? Double($0.reps) : $0.weight)
+                }
+            }
+    }
+
+    /// "42,5×12 · 42,5×10" o, sin peso, "15 · 12 · 10 reps".
+    func doneText(_ e: HistoryEntry, _ ex: RoutineExercise) -> String {
+        let parts = e.doneIndices.map { i -> String in
+            let s = score(e, i, ex)
+            return ex.isBodyweight ? "\(s.reps)" : "\(fmtW(s.weight))×\(s.reps)"
+        }
+        return parts.joined(separator: " · ") + (ex.isBodyweight ? " reps" : "")
     }
 
     func status(_ ex: RoutineExercise) -> ExerciseStatus {
         let t = todayEntry(ex.key)
         let n = t.map { e in e.done.prefix(ex.series).filter { $0 }.count } ?? 0
-        return ExerciseStatus(done: n, all: n >= ex.series, record: t?.prW)
+        let record = t.flatMap { e in e.prW.map { SetScore(weight: $0, reps: e.prR ?? 0) } }
+        return ExerciseStatus(done: n, all: n >= ex.series, record: record)
     }
 
     /// La anotación de hoy, o una nueva con los pesos de la última vez (sin guardarla).
     func entryOrSeed(_ ex: RoutineExercise, dayName: String) -> HistoryEntry {
         if var e = todayEntry(ex.key) {
-            pad(&e, to: ex.series)
+            pad(&e, to: ex.series, target: ex.targetReps)
             return e
         }
         let seed = lastEntry(ex.key, excludingToday: true)?.sets ?? []
         let sets = (0..<ex.series).map { i in i < seed.count ? seed[i] : (seed.last ?? 0) }
+        // Las reps arrancan con las de la planilla.
+        let target = ex.targetReps
+        let reps = (0..<ex.series).map { i in i < target.count ? target[i] : (target.last ?? 10) }
         return HistoryEntry(
             date: workDate, sets: sets, done: Array(repeating: false, count: ex.series),
-            day: dayName, session: data.session?.id
+            reps: reps, day: dayName, session: data.session?.id
         )
     }
 
@@ -123,9 +151,12 @@ final class Store {
 
     // MARK: - Series y pesos
 
-    private func pad(_ e: inout HistoryEntry, to n: Int) {
+    private func pad(_ e: inout HistoryEntry, to n: Int, target: [Int]) {
         while e.sets.count < n { e.sets.append(e.sets.last ?? 0) }
         while e.done.count < e.sets.count { e.done.append(false) }
+        var reps = e.reps ?? []
+        while reps.count < e.sets.count { reps.append(e.repsAt(reps.count, fallback: target)) }
+        e.reps = reps
     }
 
     /// Guarda la anotación de hoy (creándola si hace falta) y devuelve su posición.
@@ -171,6 +202,35 @@ final class Store {
         commit(touch: true)
     }
 
+    func changeReps(dayIndex: Int, exerciseIndex: Int, set i: Int, up: Bool) {
+        guard case let (day, ex)? = exercise(day: dayIndex, index: exerciseIndex) else { return }
+        changeReps(ex, dayName: day.name, set: i, up: up)
+    }
+
+    private func changeReps(_ ex: RoutineExercise, dayName: String, set i: Int, up: Bool) {
+        let idx = ensureEntry(ex, dayName: dayName)
+        var e = data.hist[ex.key]![idx]
+        guard var reps = e.reps, reps.indices.contains(i) else { return }
+        reps[i] = up ? reps[i] + 1 : max(0, reps[i] - 1)
+        e.reps = reps
+        data.hist[ex.key]![idx] = e
+        checkRecord(ex, raised: up)
+        commit(touch: true)
+    }
+
+    /// Marca un ejercicio como "sin peso" (o con peso) en todos los días de la rutina.
+    func setBodyweight(dayIndex: Int, exerciseIndex: Int, _ on: Bool) {
+        guard case let (_, ex)? = exercise(day: dayIndex, index: exerciseIndex) else { return }
+        var routine = data.routine
+        for d in routine.days.indices {
+            for j in routine.days[d].exercises.indices where routine.days[d].exercises[j].key == ex.key {
+                routine.days[d].exercises[j].bodyweight = on
+            }
+        }
+        data.routine = routine
+        commit()
+    }
+
     func toggleSet(dayIndex: Int, exerciseIndex: Int, set i: Int) {
         guard case let (day, ex)? = exercise(day: dayIndex, index: exerciseIndex) else { return }
         let idx = ensureEntry(ex, dayName: day.name)
@@ -195,29 +255,35 @@ final class Store {
         let k = ex.key
         guard let idx = entries(k).firstIndex(where: isCurrent) else { return }
         var e = data.hist[k]![idx]
-        let best = bestPast(k)
-        var top: Double?
+        let best = bestPast(ex)
+        var top: SetScore?
         if let best {
-            for (w, d) in zip(e.sets, e.done) where d && w > best {
-                top = max(top ?? w, w)
+            for i in e.doneIndices {
+                let s = score(e, i, ex)
+                if s > best { top = max(top ?? s, s) }
             }
         }
-        let before = e.prW ?? 0
-        e.prW = top
+        let before = e.prW.map { SetScore(weight: $0, reps: e.prR ?? 0) }
+        e.prW = top?.weight
+        e.prR = top?.reps
         data.hist[k]![idx] = e
-        if raised, let top, top > before, let best {
-            celebrate(ex.name, weight: top, previous: best)
+        if raised, let top, let best, before.map({ top > $0 }) ?? true {
+            celebrate(
+                ex.name,
+                text: scoreText(top, bodyweight: ex.isBodyweight),
+                previous: scoreText(best, bodyweight: ex.isBodyweight)
+            )
         }
     }
 
-    private func celebrate(_ name: String, weight: Double, previous: Double) {
+    private func celebrate(_ name: String, text: String, previous: String) {
         if UIApplication.shared.applicationState == .active {
-            celebration = Celebration(name: name, weight: weight, previous: previous)
+            celebration = Celebration(name: name, text: text, previous: previous)
             Haptics.celebrate()
         } else {
             // App cerrada (botón de la pantalla de bloqueo): aviso que también vibra en el reloj.
             notificationTasks.append(Task {
-                await Notifier.record(name: name, weight: weight, previous: previous)
+                await Notifier.record(name: name, text: text, previous: previous)
             })
         }
     }
@@ -322,12 +388,20 @@ final class Store {
             let list = entries(ex.key)
             let mine = { (e: HistoryEntry) in e.date == s.date && e.session == s.id }
             guard let e = list.last(where: mine) else { continue }
-            let w = e.doneWeights
-            if !w.isEmpty { done += 1 }
-            sets += w.count
-            volume += w.reduce(0, +) * Double(repsNumber(ex.reps))
-            if let pr = e.prW, let prev = list.filter({ !mine($0) }).compactMap(\.top).max() {
-                prs.append(PRItem(name: ex.name, weight: pr, previous: prev))
+            let doneSets = e.doneIndices
+            if !doneSets.isEmpty { done += 1 }
+            sets += doneSets.count
+            // Kilos totales con las reps reales (los ejercicios sin peso no suman kilos).
+            if !ex.isBodyweight {
+                volume += doneSets.reduce(0) { $0 + e.sets[$1] * Double(e.repsAt($1, fallback: ex.targetReps)) }
+            }
+            if let prW = e.prW, let prev = list.filter({ !mine($0) }).compactMap({ bestDone($0, ex) }).max() {
+                let top = SetScore(weight: prW, reps: e.prR ?? 0)
+                prs.append(PRItem(
+                    name: ex.name, weight: prW, previous: prev.weight,
+                    text: scoreText(top, bodyweight: ex.isBodyweight),
+                    previousText: scoreText(prev, bodyweight: ex.isBodyweight)
+                ))
             }
         }
         return SessionLog(
@@ -379,6 +453,14 @@ final class Store {
         let e = entryOrSeed(c.ex, dayName: c.day.name)
         guard let i = currentSetIndex(e, series: c.ex.series) else { return }
         changeWeight(c.ex, dayName: c.day.name, set: i, up: up)
+    }
+
+    func adjustCurrentReps(up: Bool, exercise: String, setNumber: Int) {
+        guard data.session != nil else { return endAllActivities() }
+        guard matchesShown(exercise, setNumber), let c = current else { return pushLiveActivity() }
+        let e = entryOrSeed(c.ex, dayName: c.day.name)
+        guard let i = currentSetIndex(e, series: c.ex.series) else { return }
+        changeReps(c.ex, dayName: c.day.name, set: i, up: up)
     }
 
     func completeCurrentSet(exercise: String, setNumber: Int) {
@@ -477,7 +559,7 @@ final class Store {
         let day = sessionDay
         var st = WorkoutAttributes.ContentState(
             startDate: s.start, dayName: s.dayName, exercise: nil, setNumber: 0, setCount: 0,
-            reps: "", weight: 0, recordPace: false,
+            reps: "", weight: 0, recordPace: false, setReps: 0, bodyweight: false,
             doneExercises: day?.exercises.filter { status($0).all }.count ?? 0,
             totalExercises: day?.exercises.count ?? 0,
             confirmingEnd: s.confirmingEnd, finishedSummary: nil
@@ -490,7 +572,9 @@ final class Store {
                 st.setCount = c.ex.series
                 st.reps = c.ex.reps
                 st.weight = e.sets[i]
-                if let best = bestPast(c.ex.key) { st.recordPace = e.sets[i] > best }
+                st.setReps = e.repsAt(i, fallback: c.ex.targetReps)
+                st.bodyweight = c.ex.isBodyweight
+                if let best = bestPast(c.ex) { st.recordPace = score(e, i, c.ex) > best }
             }
         }
         return st
@@ -501,7 +585,7 @@ final class Store {
         if !log.prs.isEmpty { summary += " · \(log.prs.count) récord\(log.prs.count > 1 ? "s" : "")" }
         return WorkoutAttributes.ContentState(
             startDate: s.start, dayName: s.dayName, exercise: nil, setNumber: 0, setCount: 0,
-            reps: "", weight: 0, recordPace: false, doneExercises: log.exercisesDone,
+            reps: "", weight: 0, recordPace: false, setReps: 0, bodyweight: false, doneExercises: log.exercisesDone,
             totalExercises: log.exercisesTotal, confirmingEnd: false, finishedSummary: summary
         )
     }

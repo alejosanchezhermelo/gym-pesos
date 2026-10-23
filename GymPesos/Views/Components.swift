@@ -282,10 +282,10 @@ struct LiveButton: View {
 }
 
 struct RecordChip: View {
-    let weight: Double
+    let text: String
 
     var body: some View {
-        Label("Récord \(fmtW(weight))", systemImage: "medal.fill")
+        Label("Récord \(text)", systemImage: "medal.fill")
             .font(.display(14, weight: .bold))
             .tracking(1.1)
             .textCase(.uppercase)
@@ -361,14 +361,15 @@ struct ProgressChart: View {
 struct ProgressChartBox: View {
     let points: [ProgressPoint]
     let today: String
+    var unit = "kg"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Progreso · mejor serie").eyebrow(11)
+                Text(unit == "kg" ? "Progreso · mejor peso" : "Progreso · mejores reps").eyebrow(11)
                 Spacer()
                 if points.count >= 2, let hi = points.map(\.weight).max() {
-                    Text("Máx \(fmtW(hi)) kg")
+                    Text("Máx \(fmtW(hi)) \(unit)")
                         .font(.display(12, weight: .bold))
                         .foregroundStyle(Palette.gold)
                 }
