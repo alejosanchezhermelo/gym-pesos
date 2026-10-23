@@ -92,6 +92,14 @@ struct Session: Codable, Equatable {
     var lastActivity: Date?
     /// Cada entrenamiento es independiente: se pueden hacer varios el mismo día.
     var id: UUID?
+    /// Dos ejercicios que se alternan serie por serie (solo en este entrenamiento).
+    var superset: [String]?
+}
+
+struct BodyWeight: Codable, Equatable, Identifiable {
+    var id = UUID()
+    var date: Date
+    var kg: Double
 }
 
 struct PRItem: Codable, Equatable, Hashable {
@@ -130,6 +138,12 @@ struct AppData: Codable {
     var log: [SessionLog]
     /// Resumen que falta mostrar (por ejemplo, si se terminó desde la pantalla de bloqueo).
     var pendingSummary: UUID?
+    /// Peso corporal cargado a mano, del más viejo al más nuevo.
+    var bodyWeights: [BodyWeight]?
+    /// Nombre para el saludo del inicio.
+    var userName: String?
+    /// Entrenamientos por semana que querés hacer.
+    var weeklyGoal: Int?
 
     static func initial() -> AppData {
         AppData(

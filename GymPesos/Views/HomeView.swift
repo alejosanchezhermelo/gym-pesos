@@ -1,57 +1,157 @@
 import SwiftUI
 
-/// Inicio: "¿Qué toca hoy?" con un botón grande por día.
+enum HomeTab: String {
+    case train, progress, history
+}
+
+/// Inicio con tres pestañas: Entrenar, Progreso e Historial.
 struct HomeView: View {
     var openDay: (Int) -> Void
     var openSettings: () -> Void
-    var openImport: () -> Void
+    var openBodyWeight: () -> Void
+    var openLog: (SessionLog) -> Void
+    var addDay: () -> Void
 
+    @AppStorage("homeTab") private var tab: HomeTab = .train
     private var store: Store { Store.shared }
 
     var body: some View {
-        GeometryReader { geo in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    header
-                    Spacer(minLength: 22)
-                    if store.data.demo {
-                        DemoBanner(clear: { store.clearDemo() })
-                            .padding(.bottom, 16)
-                    }
-                    VStack(spacing: 12) {
-                        ForEach(Array(store.routine.days.enumerated()), id: \.element.id) { item in
-                            DayCard(day: item.element, index: item.offset) { openDay(item.offset) }
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 20)
-                .padding(.bottom, 12)
-                .frame(minHeight: geo.size.height, alignment: .top)
+        Group {
+            switch tab {
+            case .train:
+                TrainTab(openDay: openDay, openSettings: openSettings, openBodyWeight: openBodyWeight,
+                         addDay: addDay, showProgress: { tab = .progress })
+            case .progress:
+                ProgressTab(openBodyWeight: openBodyWeight, openLog: openLog)
+            case .history:
+                HistoryTab(openLog: openLog)
             }
-            .scrollIndicators(.hidden)
         }
         .safeAreaInset(edge: .bottom) {
             Dock {
-                if let s = store.session {
-                    DockIconButton(systemImage: "gearshape.fill", label: "Ajustes", action: openSettings)
-                    LiveButton(dayName: s.dayName, start: s.start) { openDay(s.dayIndex) }
-                } else {
-                    DockIconButton(systemImage: "gearshape.fill", label: "Ajustes", action: openSettings)
-                    BigButton(title: "Importar rutina nueva", systemImage: "square.and.arrow.down", kind: .secondary, action: openImport)
+                VStack(spacing: 10) {
+                    if let s = store.session {
+                        LiveButton(dayName: s.dayName, start: s.start) { openDay(s.dayIndex) }
+                    }
+                    TabBar(tab: $tab)
                 }
             }
         }
     }
+}
+
+private struct TabBar: View {
+    @Binding var tab: HomeTab
+
+    var body: some View {
+        HStack(spacing: 6) {
+            item(.train, "Entrenar", "dumbbell.fill")
+            item(.progress, "Progreso", "chart.line.uptrend.xyaxis")
+            item(.history, "Historial", "clock.arrow.circlepath")
+        }
+        .padding(4)
+        .background(RoundedRectangle(cornerRadius: 18).fill(Palette.surface2))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Palette.line, lineWidth: 1))
+    }
+
+    private func item(_ t: HomeTab, _ title: String, _ icon: String) -> some View {
+        let on = tab == t
+        return Button {
+            withAnimation(.easeOut(duration: 0.2)) { tab = t }
+        } label: {
+            VStack(spacing: 2) {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .bold))
+                Text(title)
+                    .font(.display(13, weight: .bold))
+                    .textCase(.uppercase)
+            }
+            .foregroundStyle(on ? Palette.accentInk : Palette.muted)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .background(RoundedRectangle(cornerRadius: 14).fill(on ? Palette.accent : Color.clear))
+        }
+        .buttonStyle(PressScale())
+        .sensoryFeedback(.selection, trigger: on)
+    }
+}
+
+// MARK: - Entrenar
+
+private struct TrainTab: View {
+    var openDay: (Int) -> Void
+    var openSettings: () -> Void
+    var openBodyWeight: () -> Void
+    var addDay: () -> Void
+    var showProgress: () -> Void
+
+    private var store: Store { Store.shared }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                header
+                if let d = store.suggestedDayIndex, store.routine.days.indices.contains(d) {
+                    Button { openDay(d) } label: {
+                        HStack(spacing: 8) {
+                            Text("Te toca:")
+                                .font(.system(size: 16))
+                                .foregroundStyle(Palette.muted)
+                            Text(store.routine.days[d].name)
+                                .font(.display(22, weight: .bold))
+                                .textCase(.uppercase)
+                                .foregroundStyle(Palette.accent)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .heavy))
+                                .foregroundStyle(Palette.accent)
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    .buttonStyle(PressScale())
+                }
+
+                HomeCards(openDay: openDay, openBodyWeight: openBodyWeight, showProgress: showProgress)
+
+                if store.data.demo {
+                    DemoBanner(clear: { store.clearDemo() })
+                }
+
+                VStack(spacing: 12) {
+                    ForEach(Array(store.routine.days.enumerated()), id: \.element.id) { item in
+                        DayCard(day: item.element, index: item.offset) { openDay(item.offset) }
+                    }
+                    Button(action: addDay) {
+                        Label("Agregar día", systemImage: "plus")
+                            .font(.display(17, weight: .bold))
+                            .textCase(.uppercase)
+                            .foregroundStyle(Palette.muted)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Palette.line, style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
+                    }
+                    .buttonStyle(PressScale())
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 20)
+            .padding(.bottom, 12)
+        }
+        .scrollIndicators(.hidden)
+    }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(store.routine.profe.isEmpty ? "Mi rutina" : "Rutina de \(store.routine.profe)").eyebrow()
-            (Text("¿Qué\ntoca ") + Text("hoy").foregroundColor(Palette.accent) + Text("?"))
-                .font(.display(40, weight: .heavy))
-                .textCase(.uppercase)
-                .foregroundStyle(Palette.fg)
-                .lineSpacing(-4)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(SpanishDate.weekdayAndDay(Date())).eyebrow()
+                (Text("Hola") + Text(store.data.userName.map { ", \($0)" } ?? "") + Text("!"))
+                    .font(.display(40, weight: .heavy))
+                    .textCase(.uppercase)
+                    .foregroundStyle(Palette.fg)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            Spacer()
+            DockIconButton(systemImage: "gearshape.fill", label: "Ajustes", action: openSettings)
         }
     }
 }

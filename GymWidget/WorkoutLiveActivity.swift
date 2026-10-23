@@ -75,6 +75,11 @@ struct LockScreenActivityView: View {
                     .foregroundStyle(Palette.fg)
                     .lineLimit(1)
                 Spacer(minLength: 4)
+                if state.superset && state.finishedSummary == nil {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Palette.accent)
+                }
                 if state.exercise != nil && state.finishedSummary == nil && !state.confirmingEnd {
                     Text("S\(state.setNumber)/\(state.setCount)")
                         .font(.display(16, weight: .bold))

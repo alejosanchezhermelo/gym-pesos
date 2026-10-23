@@ -5,6 +5,7 @@ struct DayView: View {
     let dayIndex: Int
     var back: () -> Void
     var openExercise: (Int) -> Void
+    var openEditor: () -> Void
 
     private var store: Store { Store.shared }
 
@@ -25,7 +26,24 @@ struct DayView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Día \(dayIndex + 1) de \(store.routine.days.count)").eyebrow()
+                    HStack {
+                        Text("Día \(dayIndex + 1) de \(store.routine.days.count)").eyebrow()
+                        Spacer()
+                        // Mientras entrenás este día no se edita, para no romper el entrenamiento.
+                        if !running {
+                            Button(action: openEditor) {
+                                Label("Editar", systemImage: "pencil")
+                                    .font(.display(15, weight: .bold))
+                                    .textCase(.uppercase)
+                                    .foregroundStyle(Palette.fg)
+                                    .padding(.horizontal, 14)
+                                    .frame(height: 36)
+                                    .background(Capsule().fill(Palette.surface2))
+                                    .overlay(Capsule().stroke(Palette.line, lineWidth: 1))
+                            }
+                            .buttonStyle(PressScale())
+                        }
+                    }
                     Text(day.name)
                         .font(.display(44, weight: .heavy))
                         .textCase(.uppercase)
@@ -43,17 +61,39 @@ struct DayView: View {
                     .font(.system(size: 15))
                     .foregroundStyle(Palette.muted)
                     .padding(.top, 6)
-                    Text("En el orden que quieras")
+                    Text(running ? "En el orden que quieras · mantené apretado un ejercicio para hacer superserie" : "En el orden que quieras")
                         .font(.system(size: 14))
                         .foregroundStyle(Palette.muted)
                 }
                 VStack(spacing: 10) {
                     ForEach(Array(day.exercises.enumerated()), id: \.element.id) { item in
+                        let ex = item.element
+                        let partner = running ? store.partner(of: ex.key) : nil
                         ExerciseCard(
-                            ex: item.element,
-                            isCurrent: running && session?.currentKey == item.element.key
+                            ex: ex,
+                            isCurrent: running && session?.currentKey == ex.key,
+                            partnerName: partner.flatMap { p in day.exercises.first { $0.key == p }?.name }
                         ) {
                             openExercise(item.offset)
+                        }
+                        .contextMenu {
+                            if running {
+                                if partner != nil {
+                                    Button(role: .destructive) { store.clearSuperset() } label: {
+                                        Label("Separar superserie", systemImage: "arrow.left.and.right.square")
+                                    }
+                                } else {
+                                    Menu {
+                                        ForEach(day.exercises.filter { $0.key != ex.key && !store.status($0).all }) { other in
+                                            Button(other.name) { store.makeSuperset(dayIndex: dayIndex, ex.key, other.key) }
+                                        }
+                                    } label: {
+                                        Label("Superserie con…", systemImage: "arrow.triangle.2.circlepath")
+                                    }
+                                }
+                            } else {
+                                Text("Arrancá el entrenamiento para armar una superserie")
+                            }
                         }
                     }
                 }
@@ -87,6 +127,7 @@ struct DayView: View {
 private struct ExerciseCard: View {
     let ex: RoutineExercise
     let isCurrent: Bool
+    let partnerName: String?
     let open: () -> Void
 
     private var store: Store { Store.shared }
@@ -127,6 +168,19 @@ private struct ExerciseCard: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, minHeight: 86, alignment: .leading)
+            .overlay(alignment: .topLeading) {
+                if let partnerName {
+                    Label("Superserie con \(partnerName)", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.display(11, weight: .bold))
+                        .textCase(.uppercase)
+                        .foregroundStyle(Palette.accentInk)
+                        .lineLimit(1)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Palette.accent))
+                        .offset(x: 14, y: -9)
+                }
+            }
             .background(RoundedRectangle(cornerRadius: 16).fill(st.all ? Palette.accent.opacity(0.12) : Palette.surface))
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(borderColor(st), lineWidth: 1))
         }
@@ -136,7 +190,7 @@ private struct ExerciseCard: View {
     private func borderColor(_ st: ExerciseStatus) -> Color {
         if st.record != nil { return Palette.gold }
         if st.all { return Palette.accent }
-        if isCurrent { return Palette.accent.opacity(0.5) }
+        if isCurrent || partnerName != nil { return Palette.accent.opacity(0.5) }
         return Palette.line
     }
 

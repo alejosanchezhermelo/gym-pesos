@@ -52,6 +52,15 @@ struct ExerciseSheet: View {
 
                 previousLine(prev, ex)
 
+                if !bodyweight, let body = store.bodyWeight, body > 0,
+                   let top = [best, record].compactMap({ $0 }).max() {
+                    (Text("Tu mejor: \(fmtW(top.weight)) kg = ")
+                        + Text("\(fmtRatio(top.weight / body))× tu peso").fontWeight(.semibold).foregroundColor(Palette.fg)
+                        + Text(" (\(fmtW(body)) kg)"))
+                        .font(.system(size: 14))
+                        .foregroundStyle(Palette.muted)
+                }
+
                 Toggle(isOn: Binding(
                     get: { bodyweight },
                     set: { store.setBodyweight(dayIndex: dayIndex, exerciseIndex: exerciseIndex, $0) }

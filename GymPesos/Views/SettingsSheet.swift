@@ -4,6 +4,9 @@ import UserNotifications
 
 /// Ajustes: salto de peso, avisos al reloj y reiniciar estadísticas.
 struct SettingsSheet: View {
+    var openImport: () -> Void = {}
+
+    @State private var name = ""
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @State private var armed: ResetTarget?
@@ -21,6 +24,45 @@ struct SettingsSheet: View {
                     .font(.display(40, weight: .heavy))
                     .textCase(.uppercase)
                     .foregroundStyle(Palette.fg)
+
+                section("Tus datos") {
+                    TextField("Tu nombre (para el saludo)", text: $name)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Palette.fg)
+                        .padding(12)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Palette.surface2))
+                        .onAppear { name = store.data.userName ?? "" }
+                        .onSubmit { store.setUserName(name) }
+                        .onChange(of: name) { _, new in store.setUserName(new) }
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Objetivo semanal")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Palette.fg)
+                            Text("Entrenamientos por semana")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Palette.muted)
+                        }
+                        Spacer()
+                        Button { store.setWeeklyGoal(store.weeklyGoal - 1) } label: {
+                            Image(systemName: "minus").frame(width: 40, height: 40).background(Circle().fill(Palette.surface2))
+                        }
+                        .buttonStyle(PressScale())
+                        Text("\(store.weeklyGoal)")
+                            .font(.display(28, weight: .bold))
+                            .frame(minWidth: 30)
+                        Button { store.setWeeklyGoal(store.weeklyGoal + 1) } label: {
+                            Image(systemName: "plus").frame(width: 40, height: 40).background(Circle().fill(Palette.surface2))
+                        }
+                        .buttonStyle(PressScale())
+                    }
+                    .foregroundStyle(Palette.fg)
+                }
+
+                section("Rutina") {
+                    BigButton(title: "Importar rutina nueva", systemImage: "square.and.arrow.down", kind: .secondary, action: openImport)
+                    note("Para cambiar ejercicios, series o reps sin importar de nuevo, entrá a un día y tocá Editar.")
+                }
 
                 section("Salto de peso") {
                     HStack(spacing: 8) {

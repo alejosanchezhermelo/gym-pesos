@@ -10,6 +10,9 @@ enum ActiveSheet: Identifiable, Equatable {
     case summary(SessionLog)
     case settings
     case importer
+    case dayEditor(Int)
+    case bodyWeight
+    case history(SessionLog)
 
     var id: String {
         switch self {
@@ -17,6 +20,9 @@ enum ActiveSheet: Identifiable, Equatable {
         case .summary(let log): "summary-\(log.id)"
         case .settings: "settings"
         case .importer: "importer"
+        case .dayEditor(let d): "editor-\(d)"
+        case .bodyWeight: "bodyweight"
+        case .history(let log): "history-\(log.id)"
         }
     }
 }
@@ -38,7 +44,12 @@ struct ContentView: View {
                 HomeView(
                     openDay: { go(.day($0), forward: true) },
                     openSettings: { sheet = .settings },
-                    openImport: { sheet = .importer }
+                    openBodyWeight: { sheet = .bodyWeight },
+                    openLog: { sheet = .history($0) },
+                    addDay: {
+                        let d = store.addDay()
+                        sheet = .dayEditor(d)
+                    }
                 )
                 .transition(slide)
             case .day(let i):
@@ -48,7 +59,8 @@ struct ContentView: View {
                     openExercise: { j in
                         store.openExercise(dayIndex: i, exerciseIndex: j)
                         sheet = .exercise(day: i, index: j)
-                    }
+                    },
+                    openEditor: { sheet = .dayEditor(i) }
                 )
                 .transition(slide)
             }
@@ -100,9 +112,16 @@ struct ContentView: View {
             case .summary(let log):
                 SummarySheet(log: log)
             case .settings:
-                SettingsSheet()
+                SettingsSheet(openImport: { sheet = .importer })
             case .importer:
                 ImportSheet()
+            case .dayEditor(let d):
+                DayEditorSheet(dayIndex: d)
+            case .bodyWeight:
+                BodyWeightSheet()
+                    .presentationDetents([.medium, .large])
+            case .history(let log):
+                SummarySheet(log: log, allowDelete: true)
             }
         }
         .overlay {

@@ -3,6 +3,10 @@ import SwiftUI
 /// Resumen al terminar: duración, kilos, series, récords y comparación con la vez anterior.
 struct SummarySheet: View {
     let log: SessionLog
+    var allowDelete = false
+
+    @State private var deleteArmed = false
+    @State private var confirmDelete = false
 
     @Environment(\.dismiss) private var dismiss
     private var store: Store { Store.shared }
@@ -82,12 +86,43 @@ struct SummarySheet: View {
 
                 BigButton(title: "Listo") { dismiss() }
                     .padding(.top, 4)
+
+                if allowDelete {
+                    Button {
+                        if deleteArmed { confirmDelete = true } else {
+                            deleteArmed = true
+                            Task {
+                                try? await Task.sleep(for: .seconds(3))
+                                deleteArmed = false
+                            }
+                        }
+                    } label: {
+                        Label(deleteArmed ? "¿Seguro? Tocá de nuevo" : "Borrar este entrenamiento", systemImage: "trash")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(deleteArmed ? Palette.accentInk : Palette.warn)
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                            .background(RoundedRectangle(cornerRadius: 14).fill(deleteArmed ? Palette.warn : Palette.surface2))
+                    }
+                    .buttonStyle(PressScale())
+                    Text("Borra solo el resumen de este entrenamiento. Los pesos de cada ejercicio se reinician desde el editor o en Ajustes.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Palette.muted)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 24)
             .padding(.bottom, 16)
         }
         .scrollIndicators(.hidden)
+        .alert("¿Borrar este entrenamiento?", isPresented: $confirmDelete) {
+            Button("Borrar", role: .destructive) {
+                store.deleteLog(log.id)
+                dismiss()
+            }
+            Button("Cancelar", role: .cancel) { deleteArmed = false }
+        } message: {
+            Text("Se quita del historial y de las estadísticas del mes. No se puede deshacer.")
+        }
     }
 
     private func signed(_ text: String, _ value: Double) -> String {

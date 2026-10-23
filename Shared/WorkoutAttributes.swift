@@ -18,6 +18,8 @@ struct WorkoutAttributes: ActivityAttributes {
         var setReps: Int
         /// Ejercicio sin peso: se muestran solo las reps.
         var bodyweight: Bool
+        /// El ejercicio actual está en una superserie.
+        var superset: Bool
         var doneExercises: Int
         var totalExercises: Int
         /// Se tocó "Terminar" y falta confirmar.

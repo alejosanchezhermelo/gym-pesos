@@ -238,7 +238,12 @@ final class Store {
         data.hist[ex.key]![idx].done[i].toggle()
         checkRecord(ex, raised: data.hist[ex.key]![idx].done[i])
         if data.session?.dayIndex == dayIndex {
-            advanceIfFinished(ex)
+            let nowDone = data.hist[ex.key]![idx].done[i]
+            if nowDone && data.session?.currentKey == ex.key {
+                afterSetDone(ex)
+            } else {
+                advanceIfFinished(ex)
+            }
             if finishIfDayComplete() { return }
         }
         commit(touch: true)
@@ -319,6 +324,40 @@ final class Store {
         if let next = order.first(where: { $0.key != key && !status($0).all }) { return next.key }
         if let key, let same = list.first(where: { $0.key == key }), !status(same).all { return key }
         return nil
+    }
+
+    /// El otro ejercicio de la superserie, si hay.
+    func partner(of key: String) -> String? {
+        guard let pair = data.session?.superset, pair.count == 2, pair.contains(key) else { return nil }
+        return pair[0] == key ? pair[1] : pair[0]
+    }
+
+    /// Tras marcar una serie: en superserie se alterna con el otro ejercicio; si no, sigue igual.
+    private func afterSetDone(_ ex: RoutineExercise) {
+        if let p = partner(of: ex.key),
+           let other = sessionDay?.exercises.first(where: { $0.key == p }),
+           !status(other).all {
+            data.session?.currentKey = p
+            return
+        }
+        advanceIfFinished(ex)
+    }
+
+    func makeSuperset(dayIndex: Int, _ a: String, _ b: String) {
+        guard data.session?.dayIndex == dayIndex, a != b else { return }
+        data.session?.superset = [a, b]
+        let current = data.session?.currentKey
+        if current != a && current != b {
+            let first = [a, b].first { k in sessionDay?.exercises.first(where: { $0.key == k }).map { !status($0).all } ?? false }
+            if let first { data.session?.currentKey = first }
+        }
+        commit()
+    }
+
+    func clearSuperset() {
+        guard data.session != nil else { return }
+        data.session?.superset = nil
+        commit()
     }
 
     private func advanceIfFinished(_ ex: RoutineExercise) {
@@ -470,7 +509,7 @@ final class Store {
         guard let i = currentSetIndex(data.hist[c.ex.key]![idx], series: c.ex.series) else { return }
         data.hist[c.ex.key]![idx].done[i] = true
         checkRecord(c.ex, raised: true)
-        advanceIfFinished(c.ex)
+        afterSetDone(c.ex)
         if finishIfDayComplete() { return }
         commit(touch: true)
     }
@@ -496,6 +535,104 @@ final class Store {
         notificationTasks.removeAll()
         for t in tasks { await t.value }
     }
+
+    // MARK: - Editar rutina
+
+    /// Guarda un día editado. `moves` pasa el historial de un nombre viejo al nuevo.
+    func saveDay(_ index: Int, _ day: RoutineDay, moves: [String: String]) {
+        guard data.routine.days.indices.contains(index) else { return }
+        for (old, new) in moves where old != new { moveHistory(from: old, to: new) }
+        var routine = data.routine
+        let oldName = routine.days[index].name
+        routine.days[index] = day
+        data.routine = routine
+        if oldName != day.name {
+            // El historial y los resúmenes de ese día pasan al nombre nuevo.
+            for (k, list) in data.hist {
+                data.hist[k] = list.map { e in
+                    var e = e
+                    if e.day == oldName { e.day = day.name }
+                    return e
+                }
+            }
+            let logs = data.log.map { l in
+                var l = l
+                if l.dayName == oldName { l.dayName = day.name }
+                return l
+            }
+            data.log = logs
+        }
+        commit()
+    }
+
+    private func moveHistory(from old: String, to new: String) {
+        guard let list = data.hist[old] else { return }
+        let merged = (data.hist[new] ?? []) + list
+        data.hist[new] = merged.enumerated()
+            .sorted { ($0.element.date, $0.offset) < ($1.element.date, $1.offset) }
+            .map(\.element)
+        data.hist[old] = nil
+    }
+
+    func hasHistory(_ name: String) -> Bool {
+        !(data.hist[exerciseKey(name)] ?? []).filter(\.hasDone).isEmpty
+    }
+
+    /// Agrega un día vacío al final y devuelve su posición.
+    func addDay() -> Int {
+        var routine = data.routine
+        routine.days.append(RoutineDay(name: "Día \(routine.days.count + 1)", exercises: []))
+        data.routine = routine
+        commit()
+        return data.routine.days.count - 1
+    }
+
+    func deleteDay(_ index: Int) {
+        guard data.routine.days.indices.contains(index), data.session?.dayIndex != index else { return }
+        var routine = data.routine
+        routine.days.remove(at: index)
+        data.routine = routine
+        if let s = data.session, s.dayIndex > index {
+            data.session?.dayIndex = s.dayIndex - 1
+        }
+        commit()
+    }
+
+    /// Borra el historial de un ejercicio (la rutina queda igual).
+    func resetExercise(_ name: String) {
+        data.hist[exerciseKey(name)] = nil
+        commit()
+    }
+
+    func deleteLog(_ id: UUID) {
+        data.log.removeAll { $0.id == id }
+        save()
+    }
+
+    // MARK: - Inicio
+
+    func setUserName(_ name: String) {
+        let t = name.trimmingCharacters(in: .whitespaces)
+        data.userName = t.isEmpty ? nil : t
+        save()
+    }
+
+    func setWeeklyGoal(_ n: Int) {
+        data.weeklyGoal = min(7, max(1, n))
+        save()
+    }
+
+    func addBodyWeight(_ kg: Double) {
+        var list = data.bodyWeights ?? []
+        let today = Dates.key()
+        // Un valor por día: el último reemplaza al anterior.
+        list.removeAll { Dates.key($0.date) == today }
+        list.append(BodyWeight(date: Date(), kg: kg))
+        data.bodyWeights = list
+        save()
+    }
+
+    var bodyWeight: Double? { data.bodyWeights?.last?.kg }
 
     // MARK: - Importar rutina
 
@@ -559,7 +696,7 @@ final class Store {
         let day = sessionDay
         var st = WorkoutAttributes.ContentState(
             startDate: s.start, dayName: s.dayName, exercise: nil, setNumber: 0, setCount: 0,
-            reps: "", weight: 0, recordPace: false, setReps: 0, bodyweight: false,
+            reps: "", weight: 0, recordPace: false, setReps: 0, bodyweight: false, superset: false,
             doneExercises: day?.exercises.filter { status($0).all }.count ?? 0,
             totalExercises: day?.exercises.count ?? 0,
             confirmingEnd: s.confirmingEnd, finishedSummary: nil
@@ -574,6 +711,7 @@ final class Store {
                 st.weight = e.sets[i]
                 st.setReps = e.repsAt(i, fallback: c.ex.targetReps)
                 st.bodyweight = c.ex.isBodyweight
+                st.superset = partner(of: c.ex.key) != nil
                 if let best = bestPast(c.ex) { st.recordPace = score(e, i, c.ex) > best }
             }
         }
@@ -585,7 +723,7 @@ final class Store {
         if !log.prs.isEmpty { summary += " · \(log.prs.count) récord\(log.prs.count > 1 ? "s" : "")" }
         return WorkoutAttributes.ContentState(
             startDate: s.start, dayName: s.dayName, exercise: nil, setNumber: 0, setCount: 0,
-            reps: "", weight: 0, recordPace: false, setReps: 0, bodyweight: false, doneExercises: log.exercisesDone,
+            reps: "", weight: 0, recordPace: false, setReps: 0, bodyweight: false, superset: false, doneExercises: log.exercisesDone,
             totalExercises: log.exercisesTotal, confirmingEnd: false, finishedSummary: summary
         )
     }
