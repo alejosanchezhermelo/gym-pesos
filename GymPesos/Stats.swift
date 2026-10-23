@@ -2,7 +2,7 @@ import Foundation
 
 /// Cálculos para el inicio y la pestaña Progreso.
 extension Store {
-    static var calendar: Calendar {
+    nonisolated static var calendar: Calendar {
         var c = Calendar(identifier: .gregorian)
         c.firstWeekday = 2 // la semana arranca el lunes
         c.locale = Locale(identifier: "es_AR")

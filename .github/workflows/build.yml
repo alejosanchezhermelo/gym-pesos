@@ -41,6 +41,8 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             build | tee xcodebuild.log | grep -E "error:|warning:|BUILD" || true
+          # Si la compilación falla no se publica nada (antes una app a medio armar pasaba igual).
+          grep -q "BUILD SUCCEEDED" xcodebuild.log
           test -d build/Build/Products/Release-iphoneos/GymPesos.app
 
       - name: Armar .ipa sin firmar
