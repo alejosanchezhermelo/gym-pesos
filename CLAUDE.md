@@ -36,6 +36,9 @@ App nativa de iPhone (SwiftUI) para anotar pesos y reps en el gym. Es un port de
 - SideStore se renueva solo con una automatización de Atajos (6:20, diaria: conecta LocalDevVPN,
   "Refresh All Apps", espera 90 s, desconecta). Si el login de SideStore falla (-80045): servidor
   anisette Jkcoxson y "On-Device Anisette" apagado.
+- Si aparece "pairing file is invalid or missing (.rppairing UDID not found)": iPhone por cable a la
+  PC → iloader → Manage Pairing File → **Place** en SideStore → LocalDevVPN + Refresh All.
+  Pasó el 2026-10-26 y se arregló así.
 
 ## Estructura
 - `project.yml` — XcodeGen. iOS 18+. App con `SWIFT_ACTIVE_COMPILATION_CONDITIONS = APP_TARGET`.
