@@ -38,7 +38,10 @@ enum RoutineImporter {
         switch ext {
         case "pdf":
             guard let doc = PDFDocument(url: url) else { throw ImportError.unreadable("No pude abrir el PDF.") }
-            return pdfLines(doc)
+            // Cada PDF se arma distinto: se prueban varias formas de leerlo y se queda con la que
+            // encuentra más ejercicios.
+            let candidates = [pdfLinesBySelection(doc), pdfLines(doc), pdfPlainLines(doc)]
+            return candidates.max { exerciseCount($0) < exerciseCount($1) } ?? []
         case "xlsx":
             let data = try Data(contentsOf: url)
             return try XLSXReader.rows(from: data).map(joinCells)
@@ -58,6 +61,49 @@ enum RoutineImporter {
     }
 
     // MARK: PDF
+
+    private static func exerciseCount(_ lines: [String]) -> Int {
+        parse(lines).days.reduce(0) { $0 + $1.exercises.count }
+    }
+
+    /// El texto del PDF tal cual lo da PDFKit.
+    static func pdfPlainLines(_ doc: PDFDocument) -> [String] {
+        (0..<doc.pageCount).flatMap { i in
+            (doc.page(at: i)?.string ?? "").components(separatedBy: .newlines)
+        }
+    }
+
+    /// Arma renglones con los pedazos de texto que PDFKit separa por línea (cada celda de la
+    /// planilla), juntando los que están a la misma altura de izquierda a derecha.
+    static func pdfLinesBySelection(_ doc: PDFDocument) -> [String] {
+        struct Piece { let x: CGFloat; let y: CGFloat; let text: String }
+        var out: [String] = []
+        for i in 0..<doc.pageCount {
+            guard let page = doc.page(at: i),
+                  let all = page.selection(for: page.bounds(for: .mediaBox)) else { continue }
+            var pieces: [Piece] = []
+            for sel in all.selectionsByLine() {
+                let text = (sel.string ?? "").components(separatedBy: .newlines)
+                    .joined(separator: " ").trimmingCharacters(in: .whitespaces)
+                let b = sel.bounds(for: page)
+                if text.isEmpty || b.isEmpty || b.height.isNaN { continue }
+                pieces.append(Piece(x: b.minX, y: b.midY, text: text))
+            }
+            var rows: [(y: CGFloat, pieces: [Piece])] = []
+            for p in pieces {
+                if let k = rows.firstIndex(where: { abs($0.y - p.y) < 4 }) {
+                    rows[k].pieces.append(p)
+                } else {
+                    rows.append((p.y, [p]))
+                }
+            }
+            rows.sort { $0.y > $1.y }
+            for row in rows {
+                out.append(row.pieces.sorted { $0.x < $1.x }.map(\.text).joined(separator: "  "))
+            }
+        }
+        return out
+    }
 
     /// Arma renglones juntando las letras que están a la misma altura, de izquierda a derecha.
     static func pdfLines(_ doc: PDFDocument) -> [String] {
@@ -128,6 +174,8 @@ enum RoutineImporter {
     private static let dayRx = regex(#"^D[IÍ]A\s*(\d+)\s*(.*)$"#)
     private static let exRx = regex(#"^(\d{1,2})\s+(.+?)\s+(\d{1,2})\s+(\d\S*)(?:\s+.*)?$"#)
     private static let dateRx = regex(#"^(\d+)-([a-z]{3})\.?$"#)
+    /// "10/10/2010": Excel convirtió las reps en fecha completa.
+    private static let fullDateRx = regex(#"^\d{1,2}/\d{1,2}/\d{2,4}$"#)
 
     private static func groups(_ rx: NSRegularExpression, _ s: String) -> [String]? {
         let ns = s as NSString
@@ -142,11 +190,13 @@ enum RoutineImporter {
         var days: [ImportedDay] = []
         var profe = ""
         for raw in lines {
-            let line = raw.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+            // Letras con tilde separadas (I + ´) se vuelven a juntar.
+            let line = raw.precomposedStringWithCanonicalMapping.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
             if line.isEmpty { continue }
             if let g = groups(profeRx, line) { profe = g[1].trimmingCharacters(in: .whitespaces) }
             if let g = groups(dayRx, line) {
-                var name = g[2].trimmingCharacters(in: .whitespaces)
+                // "DÍA 1: Pecho y Bíceps" → "Pecho y Bíceps".
+                var name = g[2].trimmingCharacters(in: CharacterSet(charactersIn: " :-–—.\t"))
                 // A veces el PDF repite el nombre: "Pecho y Bíceps Pecho y Bíceps".
                 let words = name.split(separator: " ")
                 if words.count % 2 == 0, !words.isEmpty {
@@ -162,6 +212,8 @@ enum RoutineImporter {
                 var warn = false
                 if let d = groups(dateRx, reps), let m = meses[d[2].lowercased()] {
                     reps = "\(d[1])-\(m)"
+                    warn = true
+                } else if groups(fullDateRx, reps) != nil {
                     warn = true
                 } else if let serial = Int(reps), (20000...80000).contains(serial) {
                     // Excel guardó las reps como fecha (número de serie).
