@@ -189,6 +189,9 @@ struct Pose {
     var fa2: Double?
     var hb: Double?
     var kb: Double?
+    /// Pierna de atrás (estocadas, búlgaras): dónde apoya el pie y para dónde dobla la rodilla.
+    var ankle2: P?
+    var kb2: Double?
     var arm: Double?
     var len: Double?
     var plank = false
@@ -214,7 +217,7 @@ struct Pose {
             hip: p(a.hip, b.hip), sh: p(a.sh, b.sh), ankle: p(a.ankle, b.ankle), hand: p(a.hand, b.hand),
             handRel: p(a.handRel, b.handRel), torso: n(a.torso, b.torso), th: n(a.th, b.th), sn: n(a.sn, b.sn),
             ua: n(a.ua, b.ua), fa: n(a.fa, b.fa), ua2: n(a.ua2, b.ua2), fa2: n(a.fa2, b.fa2),
-            hb: n(a.hb, b.hb), kb: n(a.kb, b.kb), arm: n(a.arm, b.arm), len: n(a.len, b.len), plank: a.plank
+            hb: n(a.hb, b.hb), kb: n(a.kb, b.kb), ankle2: p(a.ankle2, b.ankle2), kb2: n(a.kb2, b.kb2), arm: n(a.arm, b.arm), len: n(a.len, b.len), plank: a.plank
         )
     }
 }
@@ -229,6 +232,7 @@ struct SideBody {
     var far: (P, P)?
     var kn: P
     var an: P
+    var farLeg: (P, P)?
 
     init(_ p: Pose) {
         var hip = p.hip ?? P(0, 0)
@@ -259,6 +263,12 @@ struct SideBody {
         } else {
             kn = pol(hip, p.th ?? 0, Len.thigh)
             an = pol(kn, p.sn ?? 0, Len.shin)
+        }
+        if let ankle2 = p.ankle2 {
+            let bend = p.kb2.flatMap { $0 == 0 ? nil : $0 } ?? -1
+            farLeg = ik(hip, ankle2, Len.thigh, Len.shin, bend)
+        } else {
+            farLeg = nil
         }
         self.hip = hip
         self.sh = sh
@@ -300,6 +310,10 @@ struct Motion {
         let hA = hl == .arm, hL = hl == .leg
         d.floor()
         props?(q, true, &d)
+        if let leg = q.farLeg {
+            d.bone(q.hip, leg.0, hl: hL, opacity: 0.38)
+            d.bone(leg.0, leg.1, hl: hL, opacity: 0.38)
+        }
         if let far = q.far {
             d.bone(q.sh, far.0, hl: hA, opacity: 0.38)
             d.bone(far.0, far.1, hl: hA, opacity: 0.38)
@@ -358,8 +372,11 @@ enum Motions {
         let n = exerciseKey(name)
         func has(_ words: String...) -> Bool { words.contains { n.contains($0) } }
         if has("frances") { return "frances" }
+        if has("tras nuca", "trasnuca", "copa") { return "overhead" }
         if has("press militar", "press hombro", "press arnold", "press de hombro") { return "militar" }
-        if has("press") { return "bench" }
+        // "Press con mancuernas sentado" (a veces escrito "centado") es de hombros, sin banco.
+        if has("press"), has("sentado", "centado"), !has("banco") { return "seatpress" }
+        if has("press") { return has("mancuerna", "manc.") ? "benchdb" : "bench" }
         if has("apertura", "cruce", "pec deck") { return "fly" }
         if has("flexion") { return "pushup" }
         if has("pullover") { return "pullover" }
@@ -368,14 +385,21 @@ enum Motions {
         if has("concentrado") { return "conc" }
         if has("alternado") { return "curlalt" }
         if has("curl") { return has("barra") ? "curlbar" : "curl" }
-        if has("cuadricep", "sillon") { return "legext" }
+        if has("polea baja"), !has("remo") { return "cablecurl" }
+        if has("cuadricep", "sillon", "tres posiciones") { return "legext" }
+        if has("bulgara") { return "bulgarian" }
+        if has("estocada", "zancada") { return "lunge" }
         if has("sentadilla", "prensa", "squat") { return "squat" }
         if has("peso muerto", "rumano") { return "rdl" }
         if has("vuelos lat", "elevaciones lat", "laterales") { return "lateral" }
-        if has("vuelos front", "elevaciones front", "frontales") { return "frontr" }
+        if has("vuelos front", "elevaciones front", "frontales") { return has("disco") ? "frontplate" : "frontr" }
         if has("posterior", "pajaro") { return "rear" }
-        if has("jalon", "dominada") { return "pulldown" }
-        if has("remo") { return has("mancuerna", "un brazo") ? "onerow" : "row" }
+        if has("dominada") { return "pullup" }
+        if has("jalon") { return "pulldown" }
+        if has("remo") {
+            if has("mancuerna", "un brazo") { return "onerow" }
+            return has("barra", "inclinado") ? "barrow" : "row"
+        }
         if has("fondo") { return "dips" }
         if has("patada") { return "kickback" }
         if has("extension", "polea") { return "pushdown" }
@@ -505,6 +529,56 @@ enum Motions {
                            props: { q, back, d in guard back else { return }; d.cableTo(q.ha, P(96, 4)) },
                            a: stand.with { $0.ua = 96; $0.fa = -50 },
                            b: stand.with { $0.ua = 94; $0.fa = 86 }),
+        "benchdb": Motion(hl: .arm, load: .dumbbell,
+                          props: { _, back, d in guard back else { return }; d.benchLow() },
+                          a: lie.with { $0.ua = 72; $0.fa = -88 },
+                          b: lie.with { $0.ua = -90; $0.fa = -90 }),
+        "seatpress": Motion(hl: .arm, load: .dumbbell,
+                            props: { _, back, d in
+                                guard back else { return }
+                                d.seat(70)
+                                d.pipe(P(60, 80), P(56, 36))
+                            },
+                            a: sit.with { $0.torso = -94; $0.ua = 62; $0.fa = -96 },
+                            b: sit.with { $0.torso = -94; $0.ua = -80; $0.fa = -84 }),
+        "overhead": Motion(hl: .arm, load: .dumbbell,
+                           props: { _, back, d in guard back else { return }; d.seat(70) },
+                           a: sit.with { $0.ua = -98; $0.fa = -94 },
+                           b: sit.with { $0.ua = -98; $0.fa = -238 }),
+        "cablecurl": Motion(hl: .arm, load: .handle,
+                            props: { q, back, d in guard back else { return }; d.cableTo(q.ha, P(104, 106)) },
+                            a: stand.with { $0.ua = 92; $0.fa = 90 },
+                            b: stand.with { $0.ua = 82; $0.fa = -72 }),
+        "frontplate": Motion(hl: .arm, load: .plate,
+                             a: stand.with { $0.ua = 84; $0.fa = 84 },
+                             b: stand.with { $0.ua = -4; $0.fa = -4 }),
+        "pullup": Motion(hl: .arm,
+                         props: { _, back, d in
+                             guard back else { return }
+                             d.pipe(P(48, 6), P(112, 6))
+                             d.pipe(P(112, 6), P(112, 108))
+                         },
+                         a: Pose(hip: P(82, 72), hand: P(90, 6), torso: -102, th: 96, sn: 150, hb: 1),
+                         b: Pose(hip: P(80, 52), hand: P(90, 6), torso: -102, th: 96, sn: 150, hb: 1)),
+        "barrow": Motion(hl: .arm, load: .plate,
+                         a: Pose(hip: P(62, 62), ankle: P(70, 105), torso: -16, ua: 90, fa: 90),
+                         b: Pose(hip: P(62, 62), ankle: P(70, 105), torso: -16, ua: 192, fa: 96)),
+        "lunge": Motion(hl: .leg, load: .dumbbell,
+                        a: Pose(hip: P(70, 64), ankle: P(84, 105), torso: -90, ua: 92, fa: 92, ua2: 88, fa2: 88,
+                                ankle2: P(52, 105)),
+                        b: Pose(hip: P(68, 82), ankle: P(84, 105), torso: -90, ua: 92, fa: 92, ua2: 88, fa2: 88,
+                                ankle2: P(52, 105))),
+        "bulgarian": Motion(hl: .leg, load: .dumbbell,
+                            props: { _, back, d in
+                                guard back else { return }
+                                d.box(18, 72, 30, 5)
+                                d.pipe(P(24, 77), P(24, 108))
+                                d.pipe(P(42, 77), P(42, 108))
+                            },
+                            a: Pose(hip: P(66, 64), ankle: P(82, 105), torso: -88, ua: 92, fa: 92, ua2: 88, fa2: 88,
+                                    ankle2: P(36, 72)),
+                            b: Pose(hip: P(64, 80), ankle: P(82, 105), torso: -82, ua: 94, fa: 94, ua2: 90, fa2: 90,
+                                    ankle2: P(36, 72))),
         "kickback": Motion(hl: .arm, load: .dumbbell,
                            a: Pose(hip: P(62, 62), ankle: P(64, 105), torso: -14, ua: 168, fa: 92),
                            b: Pose(hip: P(62, 62), ankle: P(64, 105), torso: -14, ua: 168, fa: 170)),
