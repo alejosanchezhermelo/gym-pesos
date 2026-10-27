@@ -70,7 +70,7 @@ App nativa de iPhone (SwiftUI) para anotar pesos y reps en el gym. Es un port de
 - Funciones globales no pueden usar estáticos del `Store` (`@MainActor`): marcarlos `nonisolated`.
 - Swift 5 en modo de lenguaje; no usar regex con `/.../` (usar `NSRegularExpression`).
 
-## Qué tiene la app (versión 1.6, build-11, probada y funcionando)
+## Qué tiene la app (versión 1.6.1, build-12; 1.6/build-11 probada y funcionando)
 - Días de la rutina; ejercicios con peso **y reps** por serie (+/−), tilde por serie.
 - Ejercicios **sin peso** (cuentan reps). Récord: más peso, o mismo peso con más reps.
 - Hoja del ejercicio: figurita animada, gráfico de progreso, historial, "tu peso × N".
@@ -83,7 +83,7 @@ App nativa de iPhone (SwiftUI) para anotar pesos y reps en el gym. Es un port de
   peso corporal, último récord, este mes). Pestañas Progreso (mes, calendario, récords, peso)
   e Historial (resúmenes, borrar).
 - Editor de rutina (con pasar historial al renombrar, reiniciar ejercicio), agregar/borrar días,
-  importar planilla. Ajustes: nombre, objetivo semanal, 6 temas + ícono, salto de peso,
+  importar planilla (PDF: prueba 3 formas de leerlo y usa la que encuentra más ejercicios). Ajustes: nombre, objetivo semanal, 6 temas + ícono, salto de peso,
   probar aviso, reiniciar estadísticas.
 
 ## Ideas pendientes (no pedidas todavía; preguntar antes)
