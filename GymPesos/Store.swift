@@ -646,10 +646,19 @@ final class Store {
     /// Reemplaza la rutina. El historial queda: va por nombre de ejercicio.
     func applyImport(_ r: ImportedRoutine) {
         if data.session != nil { finishSession(fromLockScreen: false, showSummary: false) }
+        // Los dibujos elegidos a mano se mantienen en los ejercicios que se llaman igual.
+        var figures: [String: String] = [:]
+        for ex in data.routine.days.flatMap(\.exercises) {
+            if let f = ex.figure { figures[ex.key] = f }
+        }
         let days = r.days.map { d in
             RoutineDay(
                 name: d.name.trimmingCharacters(in: .whitespaces).isEmpty ? "Día" : d.name.trimmingCharacters(in: .whitespaces),
-                exercises: d.exercises.map { RoutineExercise(name: $0.name, series: max(1, $0.series), reps: $0.reps) }
+                exercises: d.exercises.map {
+                    var ex = RoutineExercise(name: $0.name, series: max(1, $0.series), reps: $0.reps)
+                    ex.figure = figures[ex.key]
+                    return ex
+                }
             )
         }
         data.routine = Routine(profe: r.profe.isEmpty ? data.routine.profe : r.profe, days: days)

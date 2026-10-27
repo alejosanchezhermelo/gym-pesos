@@ -20,6 +20,8 @@ struct RoutineExercise: Codable, Equatable, Identifiable {
     var reps: String
     /// Se hace con el peso del cuerpo (cuentan las reps). nil = se decide por el nombre.
     var bodyweight: Bool?
+    /// Dibujo elegido a mano (id de `Motions`). nil = se elige solo por el nombre.
+    var figure: String?
 
     /// Clave del historial: el nombre sin tildes ni mayúsculas.
     var key: String { exerciseKey(name) }

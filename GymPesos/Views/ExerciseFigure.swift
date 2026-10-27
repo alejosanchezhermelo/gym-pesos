@@ -6,10 +6,14 @@ import SwiftUI
 
 struct ExerciseFigure: View {
     let name: String
+    /// Dibujo elegido a mano; nil = automático por el nombre.
+    var figure: String? = nil
+    /// Mostrar "Vista de frente/costado" abajo.
+    var caption = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let motion = Motions.motion(for: name)
+        let motion = Motions.motion(for: name, figure: figure)
         VStack(spacing: 2) {
             if let motion {
                 TimelineView(.animation(paused: reduceMotion)) { ctx in
@@ -18,12 +22,14 @@ struct ExerciseFigure: View {
                     FigureCanvas(prims: motion.draw(t))
                 }
                 .aspectRatio(160 / 112, contentMode: .fit)
-                Text(motion.front ? "Vista de frente" : "Vista de costado")
-                    .font(.display(11, weight: .semibold))
-                    .tracking(1.1)
-                    .textCase(.uppercase)
-                    .foregroundStyle(Palette.muted)
-                    .padding(.bottom, 4)
+                if caption {
+                    Text(motion.front ? "Vista de frente" : "Vista de costado")
+                        .font(.display(11, weight: .semibold))
+                        .tracking(1.1)
+                        .textCase(.uppercase)
+                        .foregroundStyle(Palette.muted)
+                        .padding(.bottom, 4)
+                }
             } else {
                 Text("Sin animación")
                     .font(.display(11, weight: .semibold))
@@ -362,9 +368,66 @@ enum Motions {
     private static let lie = Pose(hip: P(96, 62), torso: 180, th: 30, sn: 95)
     private static let sit = Pose(hip: P(70, 76), torso: -90, th: 0, sn: 90)
 
-    static func motion(for name: String) -> Motion? {
+    static func motion(for name: String, figure: String? = nil) -> Motion? {
+        if let figure, let m = all[figure] { return m }
         guard let id = id(for: name) else { return nil }
         return all[id]
+    }
+
+    struct FigureItem { let id: String; let title: String }
+    struct FigureGroup { let name: String; let items: [FigureItem] }
+
+    /// Lista para elegir el dibujo a mano, agrupada por músculo.
+    static let catalog: [FigureGroup] = [
+        FigureGroup(name: "Pecho", items: [
+            FigureItem(id: "bench", title: "Press en banco con barra"),
+            FigureItem(id: "benchdb", title: "Press en banco con mancuernas"),
+            FigureItem(id: "fly", title: "Aperturas / cruce en polea"),
+            FigureItem(id: "pullover", title: "Pullover"),
+            FigureItem(id: "pushup", title: "Flexiones"),
+        ]),
+        FigureGroup(name: "Espalda", items: [
+            FigureItem(id: "pulldown", title: "Jalón al pecho"),
+            FigureItem(id: "pullup", title: "Dominadas"),
+            FigureItem(id: "row", title: "Remo sentado en polea"),
+            FigureItem(id: "onerow", title: "Remo con mancuerna a un brazo"),
+            FigureItem(id: "barrow", title: "Remo inclinado con barra"),
+            FigureItem(id: "rdl", title: "Peso muerto"),
+        ]),
+        FigureGroup(name: "Hombros", items: [
+            FigureItem(id: "militar", title: "Press de hombros parado"),
+            FigureItem(id: "seatpress", title: "Press de hombros sentado"),
+            FigureItem(id: "lateral", title: "Vuelos laterales"),
+            FigureItem(id: "frontr", title: "Vuelos frontales con mancuerna"),
+            FigureItem(id: "frontplate", title: "Vuelos frontales con disco"),
+            FigureItem(id: "rear", title: "Posteriores"),
+        ]),
+        FigureGroup(name: "Bíceps", items: [
+            FigureItem(id: "curl", title: "Curl con mancuernas"),
+            FigureItem(id: "curlbar", title: "Curl con barra"),
+            FigureItem(id: "curlalt", title: "Curl alternado"),
+            FigureItem(id: "scott", title: "Banco Scott"),
+            FigureItem(id: "conc", title: "Curl concentrado"),
+            FigureItem(id: "cablecurl", title: "Curl en polea baja"),
+        ]),
+        FigureGroup(name: "Tríceps", items: [
+            FigureItem(id: "pushdown", title: "Tríceps en polea"),
+            FigureItem(id: "frances", title: "Press francés"),
+            FigureItem(id: "overhead", title: "Extensión tras nuca"),
+            FigureItem(id: "kickback", title: "Patada de tríceps"),
+            FigureItem(id: "dips", title: "Fondos"),
+        ]),
+        FigureGroup(name: "Piernas", items: [
+            FigureItem(id: "squat", title: "Sentadilla / prensa"),
+            FigureItem(id: "legext", title: "Sillón de cuádriceps"),
+            FigureItem(id: "legcurl", title: "Camilla femoral"),
+            FigureItem(id: "lunge", title: "Estocadas"),
+            FigureItem(id: "bulgarian", title: "Búlgaras"),
+        ]),
+    ]
+
+    static func title(of id: String) -> String? {
+        catalog.flatMap(\.items).first { $0.id == id }?.title
     }
 
     /// Qué movimiento corresponde a cada nombre de ejercicio.

@@ -44,7 +44,7 @@ struct ExerciseSheet: View {
                 }
 
                 HStack(alignment: .top, spacing: 10) {
-                    ExerciseFigure(name: ex.name)
+                    ExerciseFigure(name: ex.name, figure: ex.figure)
                         .frame(width: 150)
                     ProgressChartBox(points: points, today: today, unit: bodyweight ? "reps" : "kg")
                 }

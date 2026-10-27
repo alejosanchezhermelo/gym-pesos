@@ -180,6 +180,8 @@ struct ExerciseEditorSheet: View {
     @State private var series: Int
     @State private var reps: String
     @State private var bodyweight: Bool
+    @State private var figure: String?
+    @State private var pickingFigure = false
     @State private var askMove = false
     @State private var resetArmed = false
     @State private var confirmReset = false
@@ -194,6 +196,7 @@ struct ExerciseEditorSheet: View {
         _series = State(initialValue: exercise.series)
         _reps = State(initialValue: exercise.reps)
         _bodyweight = State(initialValue: isNew ? false : exercise.isBodyweight)
+        _figure = State(initialValue: exercise.figure)
     }
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespaces) }
@@ -249,6 +252,31 @@ struct ExerciseEditorSheet: View {
                 }
                 .tint(Palette.accent)
 
+                field("Dibujo") {
+                    Button { pickingFigure = true } label: {
+                        HStack(spacing: 12) {
+                            ExerciseFigure(name: trimmedName, figure: figure, caption: false)
+                                .frame(width: 96, height: 70)
+                                .allowsHitTesting(false)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(figure.flatMap(Motions.title(of:)) ?? "Automático")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Palette.fg)
+                                Text(figure == nil ? "Se elige solo por el nombre. Tocá para cambiarlo." : "Elegido a mano. Tocá para cambiarlo.")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(Palette.muted)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(Palette.muted)
+                        }
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Palette.bg))
+                    }
+                    .buttonStyle(PressScale())
+                }
+
                 BigButton(title: isNew ? "Agregar" : "Guardar") { trySave() }
                     .disabled(trimmedName.isEmpty)
                     .opacity(trimmedName.isEmpty ? 0.4 : 1)
@@ -280,6 +308,12 @@ struct ExerciseEditorSheet: View {
             .padding(.bottom, 16)
         }
         .scrollDismissesKeyboard(.interactively)
+        .sheet(isPresented: $pickingFigure) {
+            FigurePickerSheet(name: trimmedName, selection: $figure)
+                .presentationBackground(Palette.surface)
+                .presentationDragIndicator(.visible)
+                .preferredColorScheme(.dark)
+        }
         .alert("¿Pasar el historial al nombre nuevo?", isPresented: $askMove) {
             Button("Pasar historial") { finish(move: (exerciseKey(original.name), exerciseKey(trimmedName))) }
             Button("Empezar de cero") { finish(move: nil) }
@@ -313,6 +347,7 @@ struct ExerciseEditorSheet: View {
         ex.series = series
         ex.reps = reps.trimmingCharacters(in: .whitespaces).isEmpty ? "12" : reps.trimmingCharacters(in: .whitespaces)
         ex.bodyweight = bodyweight
+        ex.figure = figure
         onSave(ex, move)
         dismiss()
     }
@@ -331,6 +366,72 @@ struct ExerciseEditorSheet: View {
                 .foregroundStyle(Palette.fg)
                 .frame(width: 54, height: 54)
                 .background(Circle().fill(Palette.surface2))
+        }
+        .buttonStyle(PressScale())
+    }
+}
+
+/// Elegir a mano el dibujo de un ejercicio, con todos los muñequitos animados.
+struct FigurePickerSheet: View {
+    let name: String
+    @Binding var selection: String?
+    @Environment(\.dismiss) private var dismiss
+
+    private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Elegí el dibujo")
+                    .font(.display(32, weight: .heavy))
+                    .textCase(.uppercase)
+                    .foregroundStyle(Palette.fg)
+
+                LazyVGrid(columns: columns, spacing: 10) {
+                    cell(id: nil, title: "Automático", subtitle: "Por el nombre")
+                }
+
+                ForEach(Motions.catalog, id: \.name) { group in
+                    Text(group.name).eyebrow(12)
+                    LazyVGrid(columns: columns, spacing: 10) {
+                        ForEach(group.items, id: \.id) { item in
+                            cell(id: item.id, title: item.title, subtitle: nil)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 28)
+            .padding(.bottom, 16)
+        }
+    }
+
+    private func cell(id: String?, title: String, subtitle: String?) -> some View {
+        let selected = selection == id
+        return Button {
+            selection = id
+            UISelectionFeedbackGenerator().selectionChanged()
+            dismiss()
+        } label: {
+            VStack(spacing: 6) {
+                ExerciseFigure(name: id == nil ? name : "", figure: id, caption: false)
+                    .frame(height: 96)
+                    .allowsHitTesting(false)
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(selected ? Palette.accent : Palette.fg)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, minHeight: 34)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.muted)
+                }
+            }
+            .padding(8)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Palette.surface2))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(selected ? Palette.accent : .clear, lineWidth: 2))
         }
         .buttonStyle(PressScale())
     }
