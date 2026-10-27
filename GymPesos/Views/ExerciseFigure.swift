@@ -290,6 +290,8 @@ struct Motion {
     var load: Load?
     var bust = false
     var seat = false
+    /// Vista de frente con dos poleas altas (cruce en polea): agarra manijas con cable.
+    var pulleys = false
     /// Aparatos detrás (`true`) o delante (`false`) del cuerpo.
     var props: ((SideBody, Bool, inout Drawer) -> Void)?
     var a: Pose
@@ -340,6 +342,10 @@ struct Motion {
         let len = (Len.upperArm + Len.forearm) * (p.len ?? 1)
         let arm = p.arm ?? 0
         d.floor()
+        if pulleys {
+            d.pipe(P(14, 4), P(14, 108))
+            d.pipe(P(146, 4), P(146, 108))
+        }
         if bust { d.box(66, 46, 28, 60, rx: 3, opacity: 0.45) }
         if seat { d.box(60, 66, 40, 5) }
         d.head(P(cx, 20))
@@ -353,10 +359,14 @@ struct Motion {
                 d.bone(P(80, 64), P(72, 105)); d.bone(P(80, 64), P(88, 105))
             }
         }
-        for (x, a) in [(68.0, 90 + arm), (92.0, 90 - arm)] {
-            let h = pol(P(x, sy), a, len)
-            d.bone(P(x, sy), h, hl: true)
-            d.dumbbell(h)
+        let arms = [(68.0, 90 + arm), (92.0, 90 - arm)].map { x, a in (P(x, sy), pol(P(x, sy), a, len)) }
+        if pulleys {
+            d.cableTo(arms[0].1, P(18, 10))
+            d.cableTo(arms[1].1, P(142, 10))
+        }
+        for (shoulder, h) in arms {
+            d.bone(shoulder, h, hl: true)
+            if pulleys { d.handle(h) } else { d.dumbbell(h) }
         }
     }
 }
@@ -382,7 +392,8 @@ enum Motions {
         FigureGroup(name: "Pecho", items: [
             FigureItem(id: "bench", title: "Press en banco con barra"),
             FigureItem(id: "benchdb", title: "Press en banco con mancuernas"),
-            FigureItem(id: "fly", title: "Aperturas / cruce en polea"),
+            FigureItem(id: "fly", title: "Aperturas con mancuernas"),
+            FigureItem(id: "cablefly", title: "Cruce en polea"),
             FigureItem(id: "pullover", title: "Pullover"),
             FigureItem(id: "pushup", title: "Flexiones"),
         ]),
@@ -440,7 +451,8 @@ enum Motions {
         // "Press con mancuernas sentado" (a veces escrito "centado") es de hombros, sin banco.
         if has("press"), has("sentado", "centado"), !has("banco") { return "seatpress" }
         if has("press") { return has("mancuerna", "manc.") ? "benchdb" : "bench" }
-        if has("apertura", "cruce", "pec deck") { return "fly" }
+        if has("cruce") { return "cablefly" }
+        if has("apertura", "pec deck") { return "fly" }
         if has("flexion") { return "pushup" }
         if has("pullover") { return "pullover" }
         if has("femoral", "camilla") { return "legcurl" }
@@ -507,6 +519,8 @@ enum Motions {
                           b: lie.with { $0.ua = -104; $0.fa = -104 }),
         "fly": Motion(front: true, bust: true,
                       a: Pose(arm: 82), b: Pose(arm: 168)),
+        "cablefly": Motion(front: true, pulleys: true,
+                           a: Pose(arm: 128), b: Pose(arm: -28)),
         "pushup": Motion(hl: .arm,
                          a: Pose(sh: P(52, 74), ankle: P(132, 104), hand: P(52, 105), hb: -1, kb: 1, plank: true),
                          b: Pose(sh: P(52, 92), ankle: P(132, 104), hand: P(52, 105), hb: -1, kb: 1, plank: true)),
