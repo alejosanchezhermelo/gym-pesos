@@ -70,10 +70,10 @@ App nativa de iPhone (SwiftUI) para anotar pesos y reps en el gym. Es un port de
 - Funciones globales no pueden usar estáticos del `Store` (`@MainActor`): marcarlos `nonisolated`.
 - Swift 5 en modo de lenguaje; no usar regex con `/.../` (usar `NSRegularExpression`).
 
-## Qué tiene la app (versión 1.7, build-14; 1.6/build-11 probada y funcionando)
+## Qué tiene la app (versión 1.7.1, build-15; 1.6/build-11 probada y funcionando)
 - Días de la rutina; ejercicios con peso **y reps** por serie (+/−), tilde por serie.
 - Ejercicios **sin peso** (cuentan reps). Récord: más peso, o mismo peso con más reps.
-- Hoja del ejercicio: figurita animada (elegida por palabras del nombre en `Motions.id`; 1.6.2 sumó dominada, estocada, búlgara, press sentado, curl en polea, tras nuca, remo con barra, banco con mancuernas, frontal con disco), gráfico de progreso, historial, "tu peso × N". En el editor del ejercicio se puede elegir el dibujo a mano (`RoutineExercise.figure`, `Motions.catalog`, `FigurePickerSheet`); al importar se mantiene por nombre.
+- Hoja del ejercicio: figurita animada (elegida por palabras del nombre en `Motions.id`; 1.6.2 sumó dominada, estocada, búlgara, press sentado, curl en polea, tras nuca, remo con barra, banco con mancuernas, frontal con disco; 1.7.1 cruce en polea de frente con poleas), gráfico de progreso, historial, "tu peso × N". En el editor del ejercicio se puede elegir el dibujo a mano (`RoutineExercise.figure`, `Motions.catalog`, `FigurePickerSheet`); al importar se mantiene por nombre.
 - Entrenamiento: deslizar para arrancar, cronómetro, Terminar con confirmación, cierre automático
   al completar el día, cada entrenamiento empieza de cero (varios por día), resumen al terminar.
 - **Superseries** armadas en el momento (solo para ese entrenamiento).
